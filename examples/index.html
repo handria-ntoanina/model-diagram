@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Development demo for @modern-ant/model-diagram"
+    />
+    <title>Model Diagram demo</title>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">@modern-ant/model-diagram</p>
+          <h1>Portable model diagram</h1>
+        </div>
+        <div class="toolbar" aria-label="Diagram controls">
+          <button id="auto-layout" type="button">Auto layout</button>
+          <button id="fit" type="button">Fit</button>
+          <button id="zoom-out" type="button" aria-label="Zoom out">−</button>
+          <button id="zoom-in" type="button" aria-label="Zoom in">+</button>
+          <button id="add-waypoint" type="button">Add waypoint</button>
+          <button id="remove-waypoint" type="button">Remove waypoint</button>
+          <button id="reset-route" type="button">Reset route</button>
+          <label class="toggle">
+            <input id="editable" type="checkbox" checked />
+            Arrange mode
+          </label>
+        </div>
+      </header>
+      <section class="workspace">
+        <div id="diagram" aria-label="Interactive model diagram"></div>
+        <aside class="debug-panel">
+          <h2>Semantic events</h2>
+          <p>
+            Drag classes or notes. Select a relationship and double-click a segment
+            to add a waypoint. Drag its handle; double-click the handle or use the
+            remove button to delete it. Drag empty space to pan and use the wheel to zoom.
+          </p>
+          <pre id="events" aria-live="polite"></pre>
+        </aside>
+      </section>
+    </main>
+    <script type="module" src="/main.ts"></script>
+  </body>
+</html>
