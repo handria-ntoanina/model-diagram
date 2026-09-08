@@ -24,7 +24,10 @@ function makeDiagram(
   relationship: Partial<DiagramRelationship> = {},
 ): { diagram: Diagram; container: HTMLDivElement } {
   const model = modelFixture();
-  Object.assign(model.relationships[1]!, relationship);
+  Object.assign(model.relationships[1]!, {
+    type: "directed-association",
+    ...relationship,
+  });
   const container = makeContainer();
   const diagram = createDiagram(container, {
     model,

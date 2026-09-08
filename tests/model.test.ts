@@ -11,6 +11,20 @@ describe("model validation", () => {
     expect(() => validateDiagramModel(modelFixture())).not.toThrow();
   });
 
+  it("accepts directed associations as a public relationship type", () => {
+    const model = modelFixture();
+    model.relationships[1]!.type = "directed-association";
+    expect(() => validateDiagramModel(model)).not.toThrow();
+  });
+
+  it("rejects cardinalities used as relationship types", () => {
+    const model = modelFixture();
+    Object.assign(model.relationships[1]!, { type: "many-to-many" });
+    expect(() => validateDiagramModel(model)).toThrowError(
+      /unsupported type "many-to-many"/,
+    );
+  });
+
   it("reports duplicate class and relationship ids", () => {
     const model = modelFixture();
     model.classes.push({ ...model.classes[0]! });

@@ -143,6 +143,7 @@ interface DiagramRelationship {
   to: string;
   type:
     | "association"
+    | "directed-association"
     | "aggregation"
     | "composition"
     | "inheritance"
@@ -165,10 +166,30 @@ distinct from `role`, relationship type, and endpoint multiplicities. Empty or
 whitespace-only relationship labels are normalized as absent.
 
 Class attributes render in input order. A filled dot marks required attributes
-and an open dot marks optional attributes. Association, hollow aggregation
-diamond, filled composition diamond, hollow inheritance triangle, and dashed
-dependency arrow styles remain visually distinct. Multiplicities and roles are
-rendered as labels on the relationship.
+and an open dot marks optional attributes. An association is a plain solid
+line, while a directed association adds an open arrow at its `to` endpoint.
+Aggregation uses a hollow diamond and composition a filled diamond at their
+`from` (owning) endpoints. Inheritance uses a hollow target triangle, and a
+dependency uses a dashed line with an open target arrow.
+
+Relationship direction is determined exclusively by `from` and `to`, not by
+where the classes happen to be drawn. Endpoint multiplicities are independent
+of relationship type: `fromMultiplicity` labels `from`, and `toMultiplicity`
+labels `to`. For example, an undirected many-to-many association is:
+
+```ts
+{
+  type: "association",
+  from: "class-a",
+  to: "class-b",
+  fromMultiplicity: "0..*",
+  toMultiplicity: "0..*",
+}
+```
+
+Changing only `type` to `"directed-association"` gives the same
+multiplicities and an arrow at `class-b`. Cardinalities such as one-to-many or
+many-to-many are not relationship types.
 
 ## Portable layout
 
@@ -377,7 +398,7 @@ npm install
 npm run demo
 ```
 
-The demo contains all five relationship types, labels and multiplicities,
+The demo contains all six relationship types, labels and multiplicities,
 notes, automatic layout, drag and waypoint editing, viewport controls, a
 read-only toggle, and a semantic event log. It is excluded from the runtime
 package.

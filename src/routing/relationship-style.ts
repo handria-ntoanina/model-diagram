@@ -45,6 +45,8 @@ export function getRelationshipAppearance(
 ): RelationshipAppearance {
   switch (type) {
     case "association":
+      return {};
+    case "directed-association":
       return { targetMarker: openArrow() };
     case "aggregation":
       return { sourceMarker: diamond("#ffffff") };

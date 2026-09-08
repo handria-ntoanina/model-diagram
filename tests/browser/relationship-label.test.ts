@@ -18,7 +18,7 @@ function model(label: string | undefined): DiagramModel {
         id: "ownership",
         from: "person",
         to: "parcel",
-        type: "association",
+        type: "directed-association",
         ...(label === undefined ? {} : { label }),
         role: "owner/property",
         fromMultiplicity: "0..*",

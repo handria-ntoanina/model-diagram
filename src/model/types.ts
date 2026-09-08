@@ -1,5 +1,6 @@
 export type RelationshipType =
   | "association"
+  | "directed-association"
   | "aggregation"
   | "composition"
   | "inheritance"

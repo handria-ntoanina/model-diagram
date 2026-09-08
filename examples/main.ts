@@ -78,6 +78,15 @@ const model: DiagramModel = {
       toMultiplicity: "0..*",
     },
     {
+      id: "right-baunit",
+      from: "right",
+      to: "baunit",
+      type: "directed-association",
+      label: "applies to",
+      fromMultiplicity: "0..*",
+      toMultiplicity: "1",
+    },
+    {
       id: "baunit-rrr",
       from: "baunit",
       to: "rrr",

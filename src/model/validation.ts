@@ -7,6 +7,7 @@ import type {
 
 const RELATIONSHIP_TYPES = new Set<RelationshipType>([
   "association",
+  "directed-association",
   "aggregation",
   "composition",
   "inheritance",

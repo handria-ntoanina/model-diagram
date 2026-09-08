@@ -1,23 +1,18 @@
 import { describe, expect, it } from "vitest";
-import type { RelationshipType } from "../src/model/types.js";
 import { getRelationshipAppearance } from "../src/routing/relationship-style.js";
 
 describe("UML relationship appearances", () => {
-  const types: RelationshipType[] = [
-    "association",
-    "aggregation",
-    "composition",
-    "inheritance",
-    "dependency",
-  ];
+  it("uses no endpoint markers for an association", () => {
+    expect(getRelationshipAppearance("association")).toEqual({});
+  });
 
-  it.each(types)("defines a visible semantic appearance for %s", (type) => {
-    const appearance = getRelationshipAppearance(type);
-    expect(
-      appearance.sourceMarker ??
-        appearance.targetMarker ??
-        appearance.strokeDasharray,
-    ).toBeTruthy();
+  it("uses an open marker only at the target of a directed association", () => {
+    const appearance = getRelationshipAppearance("directed-association");
+    expect(appearance.sourceMarker).toBeUndefined();
+    expect(appearance.targetMarker).toMatchObject({
+      fill: "none",
+      stroke: "#334155",
+    });
   });
 
   it("uses hollow and filled diamonds for aggregation and composition", () => {

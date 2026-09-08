@@ -106,6 +106,29 @@ describe("portable layout state", () => {
     expect(store.getClassPosition("person")).toEqual({ x: 123, y: 456 });
   });
 
+  it("round-trips directed association metadata independently of layout", () => {
+    const model = modelFixture();
+    Object.assign(model.relationships[1]!, {
+      type: "directed-association",
+      label: "documents",
+      role: "evidence",
+      fromMultiplicity: "0..*",
+      toMultiplicity: "1",
+    });
+    const store = new DiagramStore(model, {
+      relationships: {
+        "party-source": { waypoints: [{ x: 300, y: 240 }] },
+      },
+    });
+
+    expect(store.getRelationship("party-source")).toEqual(
+      model.relationships[1],
+    );
+    expect(store.getLayout().relationships?.["party-source"]?.waypoints).toEqual(
+      [{ x: 300, y: 240 }],
+    );
+  });
+
   it("retains class notes and drops removed class and relationship descriptions", () => {
     const model = modelFixture();
     Object.assign(model.classes[0]!, { description: "legacy class text" });

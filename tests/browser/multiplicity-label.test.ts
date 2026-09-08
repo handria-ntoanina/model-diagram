@@ -10,6 +10,7 @@ import {
 
 const relationshipTypes: RelationshipType[] = [
   "association",
+  "directed-association",
   "aggregation",
   "composition",
   "inheritance",
@@ -85,19 +86,22 @@ function markerDescriptor(
   host: HTMLElement,
   line: SVGPathElement,
   endpoint: "start" | "end",
-): MarkerDescriptor {
+): MarkerDescriptor | null {
   const reference = line.getAttribute(`marker-${endpoint}`);
   const markerId = reference?.match(/^url\(#(.+)\)$/)?.[1];
-  if (!markerId) throw new Error(`Expected ${endpoint} marker reference`);
+  if (!markerId) return null;
   const path = host.querySelector<SVGPathElement>(
     `marker[id="${markerId}"] path`,
   );
   if (!path) throw new Error(`Expected ${endpoint} marker path`);
-  return {
+  const descriptor = {
     d: path.getAttribute("d"),
     fill: path.getAttribute("fill"),
     stroke: path.getAttribute("stroke"),
   };
+  return descriptor.d === "M 0 0" && descriptor.stroke === "none"
+    ? null
+    : descriptor;
 }
 
 function renderSnapshot(host: HTMLElement, type: RelationshipType) {
@@ -164,7 +168,10 @@ describe("relationship endpoint multiplicity labels", () => {
       });
     }
 
-    expect(initial.association.markerEnd).toEqual({
+    expect(initial.association.markerStart).toBeNull();
+    expect(initial.association.markerEnd).toBeNull();
+    expect(initial["directed-association"].markerStart).toBeNull();
+    expect(initial["directed-association"].markerEnd).toEqual({
       d: "M 10 -5 0 0 10 5",
       fill: "none",
       stroke: "#334155",
@@ -185,9 +192,18 @@ describe("relationship endpoint multiplicity labels", () => {
       stroke: "#334155",
     });
     expect(initial.dependency.markerEnd).toEqual(
-      initial.association.markerEnd,
+      initial["directed-association"].markerEnd,
     );
     expect(initial.dependency.strokeDasharray).toBe("7 5");
+    expect({
+      labelText: initial.association.labelText.slice(1),
+      multiplicityTags: initial.association.multiplicityTags,
+      multiplicityRects: initial.association.multiplicityRects,
+    }).toEqual({
+      labelText: initial["directed-association"].labelText.slice(1),
+      multiplicityTags: initial["directed-association"].multiplicityTags,
+      multiplicityRects: initial["directed-association"].multiplicityRects,
+    });
 
     diagram.addRelationshipWaypoint("relationship-association", {
       x: 280,
@@ -195,9 +211,90 @@ describe("relationship endpoint multiplicity labels", () => {
     });
     expect(renderSnapshot(host, "association")).toEqual(initial.association);
 
+    diagram.addRelationshipWaypoint("relationship-directed-association", {
+      x: 280,
+      y: 400,
+    });
+    expect(renderSnapshot(host, "directed-association")).toEqual(
+      initial["directed-association"],
+    );
+
     await diagram.autoLayout();
     for (const type of relationshipTypes) {
       expect(renderSnapshot(host, type)).toEqual(initial[type]);
     }
+  });
+
+  it("keeps the directed arrow attached to the modeled to endpoint", () => {
+    const host = document.createElement("div");
+    host.style.width = "900px";
+    host.style.height = "600px";
+    document.body.append(host);
+
+    const diagram = createDiagram(host, {
+      model: {
+        classes: [
+          { id: "a", name: "Class A" },
+          { id: "b", name: "Class B" },
+        ],
+        relationships: [
+          {
+            id: "a-to-b",
+            from: "a",
+            to: "b",
+            type: "directed-association",
+            role: "a-to-b",
+          },
+          {
+            id: "b-to-a",
+            from: "b",
+            to: "a",
+            type: "directed-association",
+            role: "b-to-a",
+          },
+        ],
+      },
+      layout: {
+        classes: {
+          a: { x: 150, y: 200 },
+          b: { x: 650, y: 200 },
+        },
+      },
+      editable: true,
+      autoLayout: false,
+    });
+    diagrams.push(diagram);
+
+    const endpointXs = (role: string): [number, number] => {
+      const path = lineFor(relationshipForRole(host, role));
+      const length = path.getTotalLength();
+      return [path.getPointAtLength(0).x, path.getPointAtLength(length).x];
+    };
+    const expectOpenTargetArrow = (role: string): void => {
+      const path = lineFor(relationshipForRole(host, role));
+      expect(markerDescriptor(host, path, "start")).toBeNull();
+      expect(markerDescriptor(host, path, "end")?.fill).toBe("none");
+    };
+
+    expect(endpointXs("a-to-b")[0]).toBeLessThan(endpointXs("a-to-b")[1]);
+    expect(endpointXs("b-to-a")[0]).toBeGreaterThan(endpointXs("b-to-a")[1]);
+    expectOpenTargetArrow("a-to-b");
+    expectOpenTargetArrow("b-to-a");
+
+    diagram.addRelationshipWaypoint("a-to-b", { x: 400, y: 350 });
+    diagram.setLayout({
+      classes: {
+        a: { x: 650, y: 200 },
+        b: { x: 150, y: 200 },
+      },
+      relationships: {
+        "a-to-b": { waypoints: [{ x: 400, y: 350 }] },
+      },
+    });
+
+    expect(endpointXs("a-to-b")[0]).toBeGreaterThan(endpointXs("a-to-b")[1]);
+    expect(endpointXs("b-to-a")[0]).toBeLessThan(endpointXs("b-to-a")[1]);
+    expectOpenTargetArrow("a-to-b");
+    expectOpenTargetArrow("b-to-a");
   });
 });
