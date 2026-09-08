@@ -39,7 +39,12 @@ export interface JointJsAdapterCallbacks {
 }
 
 interface SemanticMetadata {
-  kind: "class" | "note" | "relationship" | "note-connector";
+  kind:
+    | "class"
+    | "note"
+    | "relationship"
+    | "note-connector"
+    | "association-class-connector";
   id: string;
 }
 
@@ -205,6 +210,10 @@ export class JointJsAdapter {
   private readonly noteCells = new Map<string, joint.dia.Element>();
   private readonly relationshipCells = new Map<string, joint.dia.Link>();
   private readonly noteConnectorCells = new Map<string, joint.dia.Link>();
+  private readonly associationClassConnectorCells = new Map<
+    string,
+    joint.dia.Link
+  >();
   private readonly nativeListeners: Array<() => void> = [];
   private readonly originalContainerStyle: {
     position: string;
@@ -275,14 +284,23 @@ export class JointJsAdapter {
     const model = store.model;
     const classIds = new Set(model.classes.map(({ id }) => id));
     const relationshipIds = new Set(model.relationships.map(({ id }) => id));
+    const associationClassRelationshipIds = new Set(
+      model.relationships
+        .filter(({ associationClass }) => associationClass !== undefined)
+        .map(({ id }) => id),
+    );
     const noteIds = new Set(
       model.classes.filter(({ note }) => note).map(({ id }) => id),
     );
 
-    this.removeMissing(this.classCells, classIds);
-    this.removeMissing(this.noteCells, noteIds);
+    this.removeMissing(
+      this.associationClassConnectorCells,
+      associationClassRelationshipIds,
+    );
     this.removeMissing(this.noteConnectorCells, noteIds);
     this.removeMissing(this.relationshipCells, relationshipIds);
+    this.removeMissing(this.noteCells, noteIds);
+    this.removeMissing(this.classCells, classIds);
 
     for (const diagramClass of model.classes) {
       let cell = this.classCells.get(diagramClass.id);
@@ -328,6 +346,11 @@ export class JointJsAdapter {
 
     for (const relationship of model.relationships) {
       this.upsertRelationship(relationship, store);
+    }
+    for (const relationship of model.relationships) {
+      if (relationship.associationClass) {
+        this.upsertAssociationClassConnector(relationship);
+      }
     }
 
     this.applySelectionAppearance();
@@ -455,6 +478,7 @@ export class JointJsAdapter {
     this.noteCells.clear();
     this.relationshipCells.clear();
     this.noteConnectorCells.clear();
+    this.associationClassConnectorCells.clear();
     this.container.style.position = this.originalContainerStyle.position;
     this.container.style.overflow = this.originalContainerStyle.overflow;
     this.container.style.touchAction = this.originalContainerStyle.touchAction;
@@ -653,6 +677,45 @@ export class JointJsAdapter {
     this.syncWaypoints(relationship.id, store);
   }
 
+  private upsertAssociationClassConnector(
+    relationship: DiagramRelationship,
+  ): void {
+    if (!relationship.associationClass) return;
+    const associationClass = this.classCells.get(relationship.associationClass);
+    const association = this.relationshipCells.get(relationship.id);
+    if (!associationClass || !association) return;
+
+    let connector = this.associationClassConnectorCells.get(relationship.id);
+    if (!connector) {
+      connector = new joint.shapes.standard.Link({
+        type: "model-diagram.AssociationClassConnector",
+        semanticKind: "association-class-connector",
+        semanticId: relationship.id,
+        z: 6,
+        attrs: {
+          line: {
+            class: "model-diagram-association-class-connector",
+            stroke: "#64748b",
+            strokeWidth: 1.25,
+            strokeDasharray: "5 4",
+            sourceMarker: NO_MARKER,
+            targetMarker: NO_MARKER,
+          },
+        },
+      });
+      this.associationClassConnectorCells.set(relationship.id, connector);
+      this.graph.addCell(connector, INTERNAL);
+    }
+    connector.source(associationClass, INTERNAL);
+    connector.target(
+      association,
+      { anchor: { name: "connectionRatio", args: { ratio: 0.5 } } },
+      INTERNAL,
+    );
+    connector.router("normal", {}, INTERNAL);
+    connector.connector("straight", {}, INTERNAL);
+  }
+
   private makeRelationshipLabel(text: string): joint.dia.Link.Label {
     return {
       markup: [
@@ -781,7 +844,10 @@ export class JointJsAdapter {
     );
     this.paper.on("link:pointerclick", (view: joint.dia.LinkView) => {
       const info = metadata(view.model);
-      if (info?.kind === "relationship") {
+      if (
+        info?.kind === "relationship" ||
+        info?.kind === "association-class-connector"
+      ) {
         this.select({ kind: "relationship", id: info.id });
       }
     });

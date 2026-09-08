@@ -13,6 +13,7 @@ export {
   validateDiagramModel,
 } from "./model/validation.js";
 export type {
+  ClassId,
   DiagramAttribute,
   DiagramClass,
   DiagramLayout,

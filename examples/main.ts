@@ -65,6 +65,22 @@ const model: DiagramModel = {
         { name: "date", type: "Date" },
       ],
     },
+    {
+      id: "student",
+      name: "Student",
+    },
+    {
+      id: "course",
+      name: "Course",
+    },
+    {
+      id: "enrollment",
+      name: "Enrollment",
+      attributes: [
+        { name: "enrolledAt", type: "Date", required: true },
+        { name: "grade", type: "CharacterString" },
+      ],
+    },
   ],
   relationships: [
     {
@@ -116,6 +132,17 @@ const model: DiagramModel = {
       to: "source",
       type: "dependency",
       role: "supported by",
+    },
+    {
+      id: "student-course",
+      from: "student",
+      to: "course",
+      type: "association",
+      associationClass: "enrollment",
+      label: "takes",
+      role: "student / course",
+      fromMultiplicity: "0..*",
+      toMultiplicity: "0..*",
     },
   ],
 };

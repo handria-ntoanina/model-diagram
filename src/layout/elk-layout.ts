@@ -31,6 +31,8 @@ interface PlacedNode {
   size: Size;
 }
 
+const ASSOCIATION_CLASS_ROUTE_GAP = 90;
+
 function layoutSize(
   diagramClass: DiagramModel["classes"][number],
 ): Size {
@@ -134,6 +136,14 @@ export class ElkLayoutEngine implements LayoutEngine {
     const positions = new Map<string, Position>();
     const occupied: PlacedNode[] = [];
     const preserveStored = options.preserveStoredPositions ?? true;
+    const associationClassIds = new Set(
+      model.relationships.flatMap(({ associationClass }) =>
+        associationClass ? [associationClass] : [],
+      ),
+    );
+    const layoutNodes = new Map(
+      (result.children ?? []).map((node) => [node.id, node]),
+    );
 
     if (preserveStored) {
       for (const diagramClass of model.classes) {
@@ -158,6 +168,7 @@ export class ElkLayoutEngine implements LayoutEngine {
       if (positions.has(node.id)) continue;
       const diagramClass = model.classes.find(({ id }) => id === node.id);
       if (!diagramClass) continue;
+      if (associationClassIds.has(node.id)) continue;
       const size = layoutSize(diagramClass);
       const desiredCenter = {
         x: (node.x ?? 0) + size.width / 2,
@@ -165,6 +176,69 @@ export class ElkLayoutEngine implements LayoutEngine {
       };
       const center = findFreePosition(desiredCenter, size, occupied);
       positions.set(node.id, layoutCenterToClass(center, diagramClass));
+      occupied.push({ position: center, size });
+    }
+
+    for (const diagramClass of model.classes) {
+      if (
+        positions.has(diagramClass.id) ||
+        !associationClassIds.has(diagramClass.id)
+      ) {
+        continue;
+      }
+      const bindings = model.relationships.filter(
+        ({ associationClass }) => associationClass === diagramClass.id,
+      );
+      const midpoints = bindings.flatMap((relationship) => {
+        const source = positions.get(relationship.from);
+        const target = positions.get(relationship.to);
+        return source && target
+          ? [{ x: (source.x + target.x) / 2, y: (source.y + target.y) / 2 }]
+          : [];
+      });
+      const node = layoutNodes.get(diagramClass.id);
+      const size = layoutSize(diagramClass);
+      const fallbackCenter = {
+        x: (node?.x ?? 0) + size.width / 2,
+        y: (node?.y ?? 0) + size.height / 2,
+      };
+      const relationshipMidpoint =
+        midpoints.length > 0
+          ? {
+              x:
+                midpoints.reduce((total, point) => total + point.x, 0) /
+                midpoints.length,
+              y:
+                midpoints.reduce((total, point) => total + point.y, 0) /
+                midpoints.length,
+            }
+          : layoutCenterToClass(fallbackCenter, diagramClass);
+      const direction = options.direction ?? "RIGHT";
+      const desiredClassPosition =
+        direction === "RIGHT" || direction === "LEFT"
+          ? {
+              x: relationshipMidpoint.x,
+              y:
+                relationshipMidpoint.y +
+                classSize(diagramClass).height / 2 +
+                ASSOCIATION_CLASS_ROUTE_GAP,
+            }
+          : {
+              x:
+                relationshipMidpoint.x +
+                classSize(diagramClass).width / 2 +
+                ASSOCIATION_CLASS_ROUTE_GAP,
+              y: relationshipMidpoint.y,
+            };
+      const desiredCenter = classToLayoutCenter(
+        desiredClassPosition,
+        diagramClass,
+      );
+      const center = findFreePosition(desiredCenter, size, occupied);
+      positions.set(
+        diagramClass.id,
+        layoutCenterToClass(center, diagramClass),
+      );
       occupied.push({ position: center, size });
     }
 

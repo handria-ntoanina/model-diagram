@@ -110,6 +110,7 @@ describe("portable layout state", () => {
     const model = modelFixture();
     Object.assign(model.relationships[1]!, {
       type: "directed-association",
+      associationClass: "person",
       label: "documents",
       role: "evidence",
       fromMultiplicity: "0..*",

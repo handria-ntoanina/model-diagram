@@ -26,6 +26,7 @@ function makeDiagram(
   const model = modelFixture();
   Object.assign(model.relationships[1]!, {
     type: "directed-association",
+    associationClass: "person",
     ...relationship,
   });
   const container = makeContainer();
@@ -178,6 +179,7 @@ describe("relationship label", () => {
     diagram.redo();
     expect(diagram.getModel().relationships[1]).toMatchObject({
       label: "new label",
+      associationClass: "person",
     });
     expect(changed).toHaveBeenCalledTimes(3);
   });

@@ -1,3 +1,5 @@
+export type ClassId = string;
+
 export type RelationshipType =
   | "association"
   | "directed-association"
@@ -12,7 +14,7 @@ export interface DiagramModel {
 }
 
 export interface DiagramClass {
-  id: string;
+  id: ClassId;
   name: string;
   note?: string;
   stereotype?: string;
@@ -29,9 +31,10 @@ export interface DiagramAttribute {
 
 export interface DiagramRelationship {
   id: string;
-  from: string;
-  to: string;
+  from: ClassId;
+  to: ClassId;
   type: RelationshipType;
+  associationClass?: ClassId;
   label?: string;
   role?: string;
   fromMultiplicity?: string;

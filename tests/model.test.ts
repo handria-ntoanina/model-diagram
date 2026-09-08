@@ -17,6 +17,41 @@ describe("model validation", () => {
     expect(() => validateDiagramModel(model)).not.toThrow();
   });
 
+  it("accepts association classes on plain and directed associations", () => {
+    for (const type of ["association", "directed-association"] as const) {
+      const model = modelFixture();
+      model.relationships[1]!.type = type;
+      model.relationships[1]!.associationClass = "person";
+      expect(() => validateDiagramModel(model)).not.toThrow();
+    }
+  });
+
+  it("reports empty and missing association class references clearly", () => {
+    const empty = modelFixture();
+    empty.relationships[1]!.associationClass = "";
+    expect(() => validateDiagramModel(empty)).toThrowError(
+      /relationship "party-source" associationClass must not be empty/,
+    );
+
+    const missing = modelFixture();
+    missing.relationships[1]!.associationClass = "enrollment";
+    expect(() => validateDiagramModel(missing)).toThrowError(
+      /relationship "party-source" has unknown association class "enrollment"/,
+    );
+  });
+
+  it.each(["aggregation", "composition"] as const)(
+    "rejects associationClass on %s relationships",
+    (type) => {
+      const model = modelFixture();
+      model.relationships[1]!.type = type;
+      model.relationships[1]!.associationClass = "person";
+      expect(() => validateDiagramModel(model)).toThrowError(
+        new RegExp(`type "${type}" does not support associationClass`),
+      );
+    },
+  );
+
   it("rejects cardinalities used as relationship types", () => {
     const model = modelFixture();
     Object.assign(model.relationships[1]!, { type: "many-to-many" });

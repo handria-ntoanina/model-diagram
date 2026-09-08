@@ -14,6 +14,11 @@ const RELATIONSHIP_TYPES = new Set<RelationshipType>([
   "dependency",
 ]);
 
+const ASSOCIATION_CLASS_RELATIONSHIP_TYPES = new Set<RelationshipType>([
+  "association",
+  "directed-association",
+]);
+
 export class DiagramValidationError extends Error {
   readonly issues: readonly string[];
 
@@ -68,6 +73,22 @@ export function validateDiagramModel(model: DiagramModel): void {
       issues.push(
         `relationship "${relationship.id}" has unsupported type "${String(relationship.type)}"`,
       );
+    }
+    if (relationship.associationClass !== undefined) {
+      if (relationship.associationClass.trim() === "") {
+        issues.push(
+          `relationship "${relationship.id}" associationClass must not be empty`,
+        );
+      } else if (!classIds.has(relationship.associationClass)) {
+        issues.push(
+          `relationship "${relationship.id}" has unknown association class "${relationship.associationClass}"`,
+        );
+      }
+      if (!ASSOCIATION_CLASS_RELATIONSHIP_TYPES.has(relationship.type)) {
+        issues.push(
+          `relationship "${relationship.id}" type "${String(relationship.type)}" does not support associationClass`,
+        );
+      }
     }
   }
 

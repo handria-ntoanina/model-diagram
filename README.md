@@ -116,13 +116,15 @@ diagram.destroy();
 ## Input model
 
 ```ts
+type ClassId = string;
+
 interface DiagramModel {
   classes: DiagramClass[];
   relationships: DiagramRelationship[];
 }
 
 interface DiagramClass {
-  id: string;
+  id: ClassId;
   name: string;
   note?: string;
   stereotype?: string;
@@ -139,8 +141,8 @@ interface DiagramAttribute {
 
 interface DiagramRelationship {
   id: string;
-  from: string;
-  to: string;
+  from: ClassId;
+  to: ClassId;
   type:
     | "association"
     | "directed-association"
@@ -148,6 +150,7 @@ interface DiagramRelationship {
     | "composition"
     | "inheritance"
     | "dependency";
+  associationClass?: ClassId;
   label?: string;
   role?: string;
   fromMultiplicity?: string;
@@ -190,6 +193,54 @@ labels `to`. For example, an undirected many-to-many association is:
 Changing only `type` to `"directed-association"` gives the same
 multiplicities and an arrow at `class-b`. Cardinalities such as one-to-many or
 many-to-many are not relationship types.
+
+### Association classes
+
+Set `associationClass` to the ID of a normal class whose attributes and
+behavior describe an association:
+
+```ts
+const model: DiagramModel = {
+  classes: [
+    { id: "student", name: "Student" },
+    { id: "course", name: "Course" },
+    {
+      id: "enrollment",
+      name: "Enrollment",
+      attributes: [
+        { name: "enrolledAt", type: "date" },
+        { name: "grade", type: "string" },
+      ],
+    },
+  ],
+  relationships: [
+    {
+      id: "student-course",
+      type: "association",
+      from: "student",
+      to: "course",
+      fromMultiplicity: "*",
+      toMultiplicity: "*",
+      associationClass: "enrollment",
+    },
+  ],
+};
+```
+
+The referenced class is rendered, selected, dragged, and reported through
+events like every other class. The renderer derives a markerless dashed
+connector from that class to the midpoint of the rendered association. This
+connector follows class movement and relationship rerouting, but it is not a
+second `DiagramRelationship` and never introduces a fabricated relationship
+ID or normal relationship mutation event.
+
+Association classes are supported on `association` and
+`directed-association`. Validation rejects them on aggregation, composition,
+inheritance, and dependency relationships, and rejects missing or empty class
+references. A class may describe more than one association. Removing a
+referenced class through `setModel()` requires removing or changing every
+binding in the same replacement model; otherwise validation rejects the model
+without changing the current diagram.
 
 ## Portable layout
 
@@ -398,10 +449,10 @@ npm install
 npm run demo
 ```
 
-The demo contains all six relationship types, labels and multiplicities,
-notes, automatic layout, drag and waypoint editing, viewport controls, a
-read-only toggle, and a semantic event log. It is excluded from the runtime
-package.
+The demo contains all six relationship types, an Enrollment association-class
+example, labels and multiplicities, notes, automatic layout, drag and waypoint
+editing, viewport controls, a read-only toggle, and a semantic event log. It is
+excluded from the runtime package.
 
 ## Licensing
 
