@@ -1,6 +1,6 @@
 {
   "name": "@modern-ant/model-diagram",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "description": "Framework-neutral interactive renderer for portable model diagrams.",
   "type": "module",
   "license": "MIT",
