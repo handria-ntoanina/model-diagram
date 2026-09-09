@@ -2,6 +2,7 @@ export { createDiagram, ModelDiagram } from "./rendering/diagram.js";
 export type {
   CreateDiagramOptions,
   Diagram,
+  DiagramFocusTarget,
 } from "./rendering/diagram.js";
 export type {
   AutoLayoutOptions,

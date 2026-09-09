@@ -30,6 +30,22 @@ export interface CreateDiagramOptions {
   layoutEngine?: LayoutEngine;
 }
 
+export type DiagramFocusTarget =
+  | {
+      type: "class";
+      id: string;
+      /** Select the class using the diagram's existing semantic selection. */
+      select?: boolean;
+    }
+  | {
+      type: "attribute";
+      classId: string;
+      /** Matches the attribute's `name` in the owning class. */
+      attributeId: string;
+      /** Select the owning class using the existing semantic selection. */
+      select?: boolean;
+    };
+
 export interface Diagram {
   on<K extends DiagramEventType>(
     type: K,
@@ -63,6 +79,7 @@ export interface Diagram {
   ): void;
   removeRelationshipWaypoint(relationshipId: string, index: number): void;
   resetRelationshipRoute(relationshipId: string): void;
+  focusElement(target: DiagramFocusTarget): boolean;
   fitToContent(padding?: number): void;
   setZoom(scale: number): void;
   zoomIn(): void;
@@ -502,6 +519,28 @@ export class ModelDiagram implements Diagram {
       relationshipId,
     });
     if (recorded) this.emitHistoryChanged();
+  }
+
+  focusElement(target: DiagramFocusTarget): boolean {
+    this.assertAlive();
+    const classId = target.type === "class" ? target.id : target.classId;
+    const diagramClass = this.store.model.classes.find(
+      (item) => item.id === classId,
+    );
+    if (!diagramClass) return false;
+
+    let attributeIndex: number | undefined;
+    if (target.type === "attribute") {
+      attributeIndex =
+        diagramClass.attributes?.findIndex(
+          (attribute) => attribute.name === target.attributeId,
+        ) ?? -1;
+      if (attributeIndex < 0) return false;
+    }
+
+    if (!this.renderer.focusClass(classId, attributeIndex)) return false;
+    if (target.select) this.changeSelection({ kind: "class", id: classId });
+    return true;
   }
 
   fitToContent(padding?: number): void {

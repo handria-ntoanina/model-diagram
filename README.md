@@ -108,6 +108,14 @@ const unsubscribe = diagram.on("class-position-changed", (event) => {
 await diagram.whenReady();
 diagram.fitToContent();
 
+diagram.focusElement({ type: "class", id: "parcel" });
+diagram.focusElement({
+  type: "attribute",
+  classId: "parcel",
+  attributeId: "area",
+  select: true,
+});
+
 // Later:
 unsubscribe();
 diagram.destroy();
@@ -404,6 +412,28 @@ can also call `fitToContent()`, `setZoom()`, `zoomIn()`, `zoomOut()`, or
 not a fixed drawing boundary, so classes, notes, labels, markers, and waypoints
 can be moved to negative or far-positive positions and recovered with
 fit-to-content.
+
+Use `focusElement()` to navigate to a semantic class or attribute without
+accessing renderer cells or SVG nodes:
+
+```ts
+diagram.focusElement({ type: "class", id: "Customer" });
+diagram.focusElement({
+  type: "attribute",
+  classId: "Customer",
+  attributeId: "email",
+  select: true,
+});
+```
+
+An attribute ID matches its `DiagramAttribute.name`. The method returns `true`
+when it resolves and focuses the target, or `false` for an unknown class or
+attribute. It preserves a readable current zoom, pans or centers as needed,
+and only changes zoom when the target would otherwise be too small or would not
+fit. Focusing an attribute keeps it inside its owning class; `select: true`
+uses the existing class selection and emits only the normal `selection-changed`
+event when that selection changes. Focusing never changes model or layout data
+and does not add undo history.
 
 ## Read-only mode and updates
 

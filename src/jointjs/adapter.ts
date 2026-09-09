@@ -4,6 +4,7 @@ import type { DiagramRelationship, Position } from "../model/types.js";
 import { getRelationshipAppearance } from "../routing/relationship-style.js";
 import {
   CLASS_HEADER_HEIGHT,
+  ATTRIBUTE_LINE_HEIGHT,
   NOTE_HEIGHT,
   NOTE_WIDTH,
   clientToDiagramPosition,
@@ -73,6 +74,10 @@ const INTERNAL = { modelDiagramInternal: true };
 const LINE_COLOR = "#334155";
 const SELECTED_COLOR = "#2563eb";
 const WAYPOINT_HIT_RADIUS = 14;
+const FOCUS_PADDING = 48;
+const MIN_READABLE_SCALE = 0.75;
+const MIN_SCALE = 0.1;
+const MAX_SCALE = 4;
 const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
 const NO_MARKER = {
   type: "path",
@@ -417,6 +422,56 @@ export class JointJsAdapter {
     if (previousRelationshipId !== this.selectedRelationshipId()) {
       this.showRelationshipTools();
     }
+  }
+
+  focusClass(classId: string, attributeIndex?: number): boolean {
+    this.assertAlive();
+    const cell = this.classCells.get(classId);
+    if (!cell) return false;
+
+    const classBounds = cell.getBBox();
+    const attributeBounds =
+      attributeIndex === undefined
+        ? undefined
+        : new joint.g.Rect(
+            classBounds.x,
+            classBounds.y + CLASS_HEADER_HEIGHT + attributeIndex * ATTRIBUTE_LINE_HEIGHT,
+            classBounds.width,
+            ATTRIBUTE_LINE_HEIGHT,
+          );
+    const classReadableScale = this.scaleToFit(classBounds);
+    const focusBounds =
+      attributeBounds && classReadableScale < MIN_READABLE_SCALE
+        ? attributeBounds
+        : classBounds;
+
+    if (
+      this.scaleValue >= MIN_READABLE_SCALE &&
+      this.isComfortablyVisible(focusBounds, this.scaleValue)
+    ) {
+      return true;
+    }
+
+    const fittingScale = this.scaleToFit(focusBounds);
+    let nextScale = this.scaleValue;
+    if (nextScale > fittingScale) nextScale = fittingScale;
+    if (nextScale < MIN_READABLE_SCALE) {
+      nextScale = Math.min(MIN_READABLE_SCALE, fittingScale);
+    }
+    nextScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, nextScale));
+
+    this.scaleValue = nextScale;
+    this.translation = {
+      x:
+        this.container.clientWidth / 2 -
+        (focusBounds.x + focusBounds.width / 2) * nextScale,
+      y:
+        this.container.clientHeight / 2 -
+        (focusBounds.y + focusBounds.height / 2) * nextScale,
+    };
+    this.applyTransform();
+    this.showRelationshipTools();
+    return true;
   }
 
   fitToContent(padding = 48): void {
@@ -1154,6 +1209,38 @@ export class JointJsAdapter {
   private applyTransform(): void {
     this.paper.scale(this.scaleValue, this.scaleValue, INTERNAL);
     this.paper.translate(this.translation.x, this.translation.y, INTERNAL);
+  }
+
+  private scaleToFit(bounds: joint.g.Rect): number {
+    const width = Math.max(this.container.clientWidth, 1);
+    const height = Math.max(this.container.clientHeight, 1);
+    const horizontalPadding = Math.min(FOCUS_PADDING, width / 4);
+    const verticalPadding = Math.min(FOCUS_PADDING, height / 4);
+    return Math.max(
+      MIN_SCALE,
+      Math.min(
+        MAX_SCALE,
+        (width - horizontalPadding * 2) / Math.max(bounds.width, 1),
+        (height - verticalPadding * 2) / Math.max(bounds.height, 1),
+      ),
+    );
+  }
+
+  private isComfortablyVisible(bounds: joint.g.Rect, scale: number): boolean {
+    const width = Math.max(this.container.clientWidth, 1);
+    const height = Math.max(this.container.clientHeight, 1);
+    const horizontalPadding = Math.min(FOCUS_PADDING, width / 4);
+    const verticalPadding = Math.min(FOCUS_PADDING, height / 4);
+    const left = bounds.x * scale + this.translation.x;
+    const top = bounds.y * scale + this.translation.y;
+    const right = (bounds.x + bounds.width) * scale + this.translation.x;
+    const bottom = (bounds.y + bounds.height) * scale + this.translation.y;
+    return (
+      left >= horizontalPadding &&
+      top >= verticalPadding &&
+      right <= width - horizontalPadding &&
+      bottom <= height - verticalPadding
+    );
   }
 
   private resize(): void {
