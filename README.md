@@ -149,8 +149,8 @@ interface DiagramAttribute {
 
 interface DiagramRelationship {
   id: string;
-  from: ClassId;
-  to: ClassId;
+  from: ClassId | RelationshipEndpoint;
+  to: ClassId | RelationshipEndpoint;
   type:
     | "association"
     | "directed-association"
@@ -158,16 +158,29 @@ interface DiagramRelationship {
     | "composition"
     | "inheritance"
     | "dependency";
+  routing?: "auto" | "straight";
   associationClass?: ClassId;
   label?: string;
   role?: string;
   fromMultiplicity?: string;
   toMultiplicity?: string;
 }
+
+type RelationshipEndpoint =
+  | { type: "class"; classId: ClassId }
+  | {
+      type: "attribute";
+      classId: ClassId;
+      attributeId: string;
+    };
 ```
 
 Class and relationship IDs must be unique. Relationship endpoints must refer
-to existing class IDs. `createDiagram`, `setModel`, and `setLayout` fail with a
+to existing classes. A string remains the backward-compatible shorthand for a
+class endpoint. An attribute endpoint explicitly names its owning class and
+uses the attribute's `name` as its stable `attributeId`; missing or ambiguous
+attributes are validation errors and never fall back to the class boundary.
+`createDiagram`, `setModel`, and `setLayout` fail with a
 `DiagramValidationError` containing all detected issues when their input is
 invalid.
 
@@ -201,6 +214,28 @@ labels `to`. For example, an undirected many-to-many association is:
 Changing only `type` to `"directed-association"` gives the same
 multiplicities and an arrow at `class-b`. Cardinalities such as one-to-many or
 many-to-many are not relationship types.
+
+Endpoint kind and routing are independent of relationship type. This directed
+association attaches directly to the `code` row and renders as one straight
+segment:
+
+```ts
+{
+  id: "order-customer-code",
+  type: "directed-association",
+  routing: "straight",
+  from: { type: "class", classId: "Order" },
+  to: {
+    type: "attribute",
+    classId: "Customer",
+    attributeId: "code",
+  },
+}
+```
+
+Omitting `routing`, or setting it to `"auto"`, retains automatic Manhattan
+routing. `"straight"` uses a direct segment between the resolved class or
+attribute-row attachment points while preserving markers and labels.
 
 ### Association classes
 
@@ -277,9 +312,12 @@ of persisted layout.
 - A class without stored coordinates is placed by ELK during initial layout.
 - A note without stored coordinates follows its class at a default offset.
 - A stored note position makes that note independent of later class movement.
-- A relationship without waypoints uses automatic Manhattan routing.
+- An auto-routed relationship without waypoints uses Manhattan routing.
 - A relationship with waypoints preserves their order and uses those points
   while its endpoint segments continue to follow moved classes.
+- A straight relationship does not use waypoints. Persisted waypoints are
+  rejected, and waypoint commands throw. Reset an existing route before
+  changing its routing to `"straight"`.
 
 `diagram.getLayout()` returns current class centers, manual note centers, and
 non-empty waypoint lists. Layout is owned per diagram instance, so the same
@@ -302,7 +340,7 @@ unsubscribe function. Every event is a plain object with semantic IDs only.
 | `relationship-waypoint-changed` | Waypoint drag committed |
 | `relationship-waypoint-removed` | Intermediate point removed |
 | `relationship-route-reset` | All manual waypoints removed |
-| `relationship-changed` | Committed relationship label changes |
+| `relationship-changed` | Committed relationship label or routing changes |
 | `auto-layout-completed` | ELK result applied in memory and available to the host |
 | `history-changed` | Current actionable `canUndo` and `canRedo` availability |
 
@@ -336,15 +374,17 @@ diagram.removeRelationshipWaypoint(id, 1);
 diagram.resetRelationshipRoute(id);
 diagram.updateRelationship(id, {
   label: "owns",
+  routing: "straight",
 });
 ```
 
 Host property editors can call `updateRelationship`. These commands emit
 committed semantic events for hosts to persist and throw while the diagram is
-read-only. `relationship-changed` contains the relationship ID and only the
-normalized fields changed by the command. Pass `undefined`, an empty string, or
-whitespace-only text to remove a label; the emitted `changes` object retains
-that changed key with the value `undefined`.
+read-only. `relationship-changed` contains the relationship ID, normalized
+semantic `source` and `target` endpoint objects, and only the fields changed by
+the command. Pass `undefined`, an empty string, or whitespace-only text to
+remove a label; the emitted `changes` object retains that changed key with the
+value `undefined`.
 
 ## Undo and redo
 
@@ -356,8 +396,8 @@ if (diagram.canRedo()) diagram.redo();
 diagram.clearHistory();
 ```
 
-Class moves, note moves, relationship label changes, waypoint additions, moves
-and removals, route resets, and explicit automatic layout are
+Class moves, note moves, relationship label or routing changes, waypoint
+additions, moves and removals, route resets, and explicit automatic layout are
 undoable. Pointer-move previews never enter history; one completed drag creates
 one entry. Undo and redo emit the normal
 committed semantic event for the resulting state, followed by

@@ -8,6 +8,27 @@ export type RelationshipType =
   | "inheritance"
   | "dependency";
 
+export type RelationshipRouting = "auto" | "straight";
+
+export interface ClassRelationshipEndpoint {
+  type: "class";
+  classId: ClassId;
+}
+
+export interface AttributeRelationshipEndpoint {
+  type: "attribute";
+  classId: ClassId;
+  /** Matches the stable `name` of an attribute in the owning class. */
+  attributeId: string;
+}
+
+export type RelationshipEndpoint =
+  | ClassRelationshipEndpoint
+  | AttributeRelationshipEndpoint;
+
+/** A class ID remains supported as shorthand for a class endpoint. */
+export type RelationshipEndpointInput = ClassId | RelationshipEndpoint;
+
 export interface DiagramModel {
   classes: DiagramClass[];
   relationships: DiagramRelationship[];
@@ -31,9 +52,10 @@ export interface DiagramAttribute {
 
 export interface DiagramRelationship {
   id: string;
-  from: ClassId;
-  to: ClassId;
+  from: RelationshipEndpointInput;
+  to: RelationshipEndpointInput;
   type: RelationshipType;
+  routing?: RelationshipRouting;
   associationClass?: ClassId;
   label?: string;
   role?: string;
@@ -43,6 +65,7 @@ export interface DiagramRelationship {
 
 export interface DiagramRelationshipChanges {
   label?: string | undefined;
+  routing?: RelationshipRouting | undefined;
 }
 
 export interface DiagramLayout {

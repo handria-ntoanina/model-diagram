@@ -1,4 +1,5 @@
 import type {
+  DiagramClass,
   DiagramLayout,
   DiagramModel,
   Position,
@@ -19,6 +20,8 @@ const ASSOCIATION_CLASS_RELATIONSHIP_TYPES = new Set<RelationshipType>([
   "directed-association",
 ]);
 
+const RELATIONSHIP_ROUTING_VALUES = new Set(["auto", "straight"]);
+
 export class DiagramValidationError extends Error {
   readonly issues: readonly string[];
 
@@ -33,9 +36,75 @@ function isFinitePosition(value: Position): boolean {
   return Number.isFinite(value.x) && Number.isFinite(value.y);
 }
 
+function validateRelationshipEndpoint(
+  relationshipId: string,
+  end: "source" | "target",
+  endpoint: unknown,
+  classes: ReadonlyMap<string, DiagramClass>,
+  issues: string[],
+): void {
+  if (typeof endpoint === "string") {
+    if (!classes.has(endpoint)) {
+      issues.push(
+        `relationship "${relationshipId}" has unknown ${end} class "${endpoint}"`,
+      );
+    }
+    return;
+  }
+  if (!endpoint || typeof endpoint !== "object" || Array.isArray(endpoint)) {
+    issues.push(`relationship "${relationshipId}" has malformed ${end} endpoint`);
+    return;
+  }
+
+  const value = endpoint as Record<string, unknown>;
+  if (value.type !== "class" && value.type !== "attribute") {
+    const detail = Object.hasOwn(value, "type")
+      ? `unsupported ${end} endpoint type "${String(value.type)}"`
+      : `malformed ${end} endpoint`;
+    issues.push(`relationship "${relationshipId}" has ${detail}`);
+    return;
+  }
+  if (typeof value.classId !== "string" || value.classId.trim() === "") {
+    issues.push(
+      `relationship "${relationshipId}" ${end} endpoint classId must be a non-empty string`,
+    );
+    return;
+  }
+
+  const diagramClass = classes.get(value.classId);
+  if (!diagramClass) {
+    issues.push(
+      `relationship "${relationshipId}" has unknown ${end} class "${value.classId}"`,
+    );
+    return;
+  }
+  if (value.type === "class") return;
+  if (typeof value.attributeId !== "string" || value.attributeId.trim() === "") {
+    issues.push(
+      `relationship "${relationshipId}" ${end} attributeId must be a non-empty string`,
+    );
+    return;
+  }
+
+  const matches =
+    diagramClass.attributes?.filter(
+      (attribute) => attribute.name === value.attributeId,
+    ) ?? [];
+  if (matches.length === 0) {
+    issues.push(
+      `relationship "${relationshipId}" has unknown ${end} attribute "${value.attributeId}" on class "${value.classId}"`,
+    );
+  } else if (matches.length > 1) {
+    issues.push(
+      `relationship "${relationshipId}" has ambiguous ${end} attribute "${value.attributeId}" on class "${value.classId}"`,
+    );
+  }
+}
+
 export function validateDiagramModel(model: DiagramModel): void {
   const issues: string[] = [];
   const classIds = new Set<string>();
+  const classes = new Map<string, DiagramClass>();
   const relationshipIds = new Set<string>();
 
   for (const [index, diagramClass] of model.classes.entries()) {
@@ -45,6 +114,7 @@ export function validateDiagramModel(model: DiagramModel): void {
       issues.push(`duplicate class id "${diagramClass.id}"`);
     }
     classIds.add(diagramClass.id);
+    classes.set(diagramClass.id, diagramClass);
 
     if (diagramClass.name.trim() === "") {
       issues.push(`class "${diagramClass.id}" must have a name`);
@@ -59,19 +129,31 @@ export function validateDiagramModel(model: DiagramModel): void {
     }
     relationshipIds.add(relationship.id);
 
-    if (!classIds.has(relationship.from)) {
-      issues.push(
-        `relationship "${relationship.id}" has unknown source class "${relationship.from}"`,
-      );
-    }
-    if (!classIds.has(relationship.to)) {
-      issues.push(
-        `relationship "${relationship.id}" has unknown target class "${relationship.to}"`,
-      );
-    }
+    validateRelationshipEndpoint(
+      relationship.id,
+      "source",
+      relationship.from,
+      classes,
+      issues,
+    );
+    validateRelationshipEndpoint(
+      relationship.id,
+      "target",
+      relationship.to,
+      classes,
+      issues,
+    );
     if (!RELATIONSHIP_TYPES.has(relationship.type)) {
       issues.push(
         `relationship "${relationship.id}" has unsupported type "${String(relationship.type)}"`,
+      );
+    }
+    if (
+      relationship.routing !== undefined &&
+      !RELATIONSHIP_ROUTING_VALUES.has(relationship.routing)
+    ) {
+      issues.push(
+        `relationship "${relationship.id}" has unsupported routing "${String(relationship.routing)}"`,
       );
     }
     if (relationship.associationClass !== undefined) {
@@ -132,6 +214,13 @@ export function validateDiagramLayout(
   )) {
     if (relationshipIds && !relationshipIds.has(id)) {
       issues.push(`relationship layout refers to unknown relationship "${id}"`);
+    }
+    const relationship = model?.relationships.find((item) => item.id === id);
+    if (
+      relationship?.routing === "straight" &&
+      (relationshipLayout.waypoints?.length ?? 0) > 0
+    ) {
+      issues.push(`straight relationship layout "${id}" must not contain waypoints`);
     }
     for (const [index, waypoint] of (
       relationshipLayout.waypoints ?? []

@@ -1,5 +1,6 @@
 import type {
   DiagramLayout,
+  RelationshipEndpoint,
   DiagramRelationshipChanges,
 } from "../model/types.js";
 
@@ -75,6 +76,8 @@ export interface DiagramEventMap {
   "relationship-changed": {
     type: "relationship-changed";
     relationshipId: string;
+    source: RelationshipEndpoint;
+    target: RelationshipEndpoint;
     changes: DiagramRelationshipChanges;
   };
   "auto-layout-completed": {

@@ -14,7 +14,9 @@ export {
   validateDiagramModel,
 } from "./model/validation.js";
 export type {
+  AttributeRelationshipEndpoint,
   ClassId,
+  ClassRelationshipEndpoint,
   DiagramAttribute,
   DiagramClass,
   DiagramLayout,
@@ -22,7 +24,10 @@ export type {
   DiagramRelationship,
   DiagramRelationshipChanges,
   Position,
+  RelationshipEndpoint,
+  RelationshipEndpointInput,
   RelationshipLayout,
+  RelationshipRouting,
   RelationshipType,
 } from "./model/types.js";
 export type {

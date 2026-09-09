@@ -96,7 +96,11 @@ const model: DiagramModel = {
     {
       id: "right-baunit",
       from: "right",
-      to: "baunit",
+      to: {
+        type: "attribute",
+        classId: "baunit",
+        attributeId: "uid",
+      },
       type: "directed-association",
       label: "applies to",
       fromMultiplicity: "0..*",
@@ -131,6 +135,7 @@ const model: DiagramModel = {
       from: "right",
       to: "source",
       type: "dependency",
+      routing: "straight",
       role: "supported by",
     },
     {
@@ -211,9 +216,18 @@ document.querySelector("#add-waypoint")?.addEventListener("click", () => {
   if (!relationshipId) return;
   const relationship = model.relationships.find(({ id }) => id === relationshipId);
   if (!relationship) return;
+  if (relationship.routing === "straight") return;
   const layout = diagram.getLayout();
-  const source = layout.classes?.[relationship.from];
-  const target = layout.classes?.[relationship.to];
+  const sourceClassId =
+    typeof relationship.from === "string"
+      ? relationship.from
+      : relationship.from.classId;
+  const targetClassId =
+    typeof relationship.to === "string"
+      ? relationship.to
+      : relationship.to.classId;
+  const source = layout.classes?.[sourceClassId];
+  const target = layout.classes?.[targetClassId];
   if (!source || !target) return;
   diagram.addRelationshipWaypoint(relationshipId, {
     x: (source.x + target.x) / 2,

@@ -18,6 +18,7 @@ import type {
   DiagramRelationshipChanges,
   Position,
 } from "../model/types.js";
+import { normalizeRelationshipEndpoint } from "../model/relationship-endpoint.js";
 import { positionsEqual } from "./geometry.js";
 import { DiagramStore } from "./store.js";
 
@@ -379,12 +380,16 @@ export class ModelDiagram implements Diagram {
     const before: DiagramRelationshipChanges = {};
     const after: DiagramRelationshipChanges = {};
 
-    for (const field of ["label"] as const) {
-      if (!Object.hasOwn(changes, field) || previous[field] === next[field]) {
-        continue;
-      }
-      before[field] = previous[field];
-      after[field] = next[field];
+    if (Object.hasOwn(changes, "label") && previous.label !== next.label) {
+      before.label = previous.label;
+      after.label = next.label;
+    }
+    if (
+      Object.hasOwn(changes, "routing") &&
+      previous.routing !== next.routing
+    ) {
+      before.routing = previous.routing;
+      after.routing = next.routing;
     }
     if (Object.keys(after).length === 0) return;
 
@@ -395,11 +400,7 @@ export class ModelDiagram implements Diagram {
       after,
     });
     this.renderer.syncRelationship(relationshipId, this.store);
-    this.emit("relationship-changed", {
-      type: "relationship-changed",
-      relationshipId,
-      changes: { ...after },
-    });
+    this.emitRelationshipChanged(relationshipId, after);
     this.emitHistoryChanged();
   }
 
@@ -848,11 +849,7 @@ export class ModelDiagram implements Diagram {
         const changes = forward ? entry.after : entry.before;
         this.store.updateRelationship(entry.relationshipId, changes);
         this.renderer.syncRelationship(entry.relationshipId, this.store);
-        this.emit("relationship-changed", {
-          type: "relationship-changed",
-          relationshipId: entry.relationshipId,
-          changes: { ...changes },
-        });
+        this.emitRelationshipChanged(entry.relationshipId, changes);
         return;
       }
       case "layout-transaction": {
@@ -975,6 +972,20 @@ export class ModelDiagram implements Diagram {
     this.selection = selection;
     this.renderer.setSelection(selection);
     this.emit("selection-changed", { type: "selection-changed", selection });
+  }
+
+  private emitRelationshipChanged(
+    relationshipId: string,
+    changes: DiagramRelationshipChanges,
+  ): void {
+    const relationship = this.store.getRelationship(relationshipId);
+    this.emit("relationship-changed", {
+      type: "relationship-changed",
+      relationshipId,
+      source: normalizeRelationshipEndpoint(relationship.from),
+      target: normalizeRelationshipEndpoint(relationship.to),
+      changes: { ...changes },
+    });
   }
 
   private emit<K extends DiagramEventType>(

@@ -3,6 +3,7 @@ import ELK, {
   type ElkNode,
 } from "elkjs/lib/elk.bundled.js";
 import type { DiagramLayout, DiagramModel, Position } from "../model/types.js";
+import { relationshipEndpointClassId } from "../model/relationship-endpoint.js";
 import {
   NOTE_GAP,
   NOTE_HEIGHT,
@@ -114,8 +115,8 @@ export class ElkLayoutEngine implements LayoutEngine {
     });
     const edges: ElkExtendedEdge[] = model.relationships.map((relationship) => ({
       id: relationship.id,
-      sources: [relationship.from],
-      targets: [relationship.to],
+      sources: [relationshipEndpointClassId(relationship.from)],
+      targets: [relationshipEndpointClassId(relationship.to)],
     }));
     const graph: ElkNode = {
       id: "model-diagram-root",
@@ -190,8 +191,12 @@ export class ElkLayoutEngine implements LayoutEngine {
         ({ associationClass }) => associationClass === diagramClass.id,
       );
       const midpoints = bindings.flatMap((relationship) => {
-        const source = positions.get(relationship.from);
-        const target = positions.get(relationship.to);
+        const source = positions.get(
+          relationshipEndpointClassId(relationship.from),
+        );
+        const target = positions.get(
+          relationshipEndpointClassId(relationship.to),
+        );
         return source && target
           ? [{ x: (source.x + target.x) / 2, y: (source.y + target.y) / 2 }]
           : [];

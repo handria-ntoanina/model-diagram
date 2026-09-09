@@ -155,6 +155,8 @@ describe("relationship label", () => {
     expect(changed).toHaveBeenLastCalledWith({
       type: "relationship-changed",
       relationshipId: "party-source",
+      source: { type: "class", classId: "party" },
+      target: { type: "class", classId: "source" },
       changes: {
         label: "new label",
       },
@@ -171,6 +173,8 @@ describe("relationship label", () => {
     expect(changed).toHaveBeenLastCalledWith({
       type: "relationship-changed",
       relationshipId: "party-source",
+      source: { type: "class", classId: "party" },
+      target: { type: "class", classId: "source" },
       changes: {
         label: "old label",
       },

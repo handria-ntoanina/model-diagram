@@ -13,6 +13,14 @@ export const NOTE_WIDTH = 220;
 export const NOTE_HEIGHT = 116;
 export const NOTE_GAP = 44;
 
+export function attributeRowTop(attributeIndex: number): number {
+  return CLASS_HEADER_HEIGHT + attributeIndex * ATTRIBUTE_LINE_HEIGHT;
+}
+
+export function attributeRowCenter(attributeIndex: number): number {
+  return attributeRowTop(attributeIndex) + ATTRIBUTE_LINE_HEIGHT / 2;
+}
+
 export function classSize(diagramClass: DiagramClass): Size {
   const attributesHeight =
     (diagramClass.attributes?.length ?? 0) * ATTRIBUTE_LINE_HEIGHT;

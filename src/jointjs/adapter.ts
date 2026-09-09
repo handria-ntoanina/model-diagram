@@ -1,12 +1,20 @@
 import * as joint from "@joint/core";
 import type { DiagramSelection } from "../events/types.js";
-import type { DiagramRelationship, Position } from "../model/types.js";
+import { normalizeRelationshipEndpoint } from "../model/relationship-endpoint.js";
+import type {
+  DiagramRelationship,
+  Position,
+  RelationshipEndpoint,
+  RelationshipRouting,
+} from "../model/types.js";
 import { getRelationshipAppearance } from "../routing/relationship-style.js";
 import {
   CLASS_HEADER_HEIGHT,
   ATTRIBUTE_LINE_HEIGHT,
   NOTE_HEIGHT,
   NOTE_WIDTH,
+  attributeRowCenter,
+  attributeRowTop,
   clientToDiagramPosition,
   classSize,
   positionsEqual,
@@ -90,6 +98,46 @@ type WaypointHandleView = joint.linkTools.Vertices.VertexHandle & {
   el: SVGGElement;
   options: { index: number };
 };
+
+function relationshipEndpointAnchor(
+  endView: joint.dia.CellView,
+  _magnet: SVGElement,
+  _reference: joint.g.Point | SVGElement,
+  _options: Record<string, unknown>,
+  endType: joint.dia.LinkEnd,
+  linkView: joint.dia.LinkView,
+): joint.g.Point {
+  const endpoint = linkView.model.get(endType) as {
+    modelDiagramAttributeIndex?: unknown;
+  };
+  const attributeIndex = endpoint.modelDiagramAttributeIndex;
+  const bounds = endView.model.getBBox();
+  if (typeof attributeIndex !== "number" || !Number.isInteger(attributeIndex)) {
+    return bounds.center();
+  }
+
+  const opposite =
+    endType === "source"
+      ? linkView.model.getTargetCell()
+      : linkView.model.getSourceCell();
+  const center = bounds.center();
+  const pointReference = _reference as { x?: unknown; y?: unknown };
+  const referenceX =
+    typeof pointReference.x === "number" &&
+    typeof pointReference.y === "number"
+      ? pointReference.x
+      : opposite instanceof joint.dia.Element
+        ? opposite.getBBox().center().x
+        : center.x;
+  const useLeft =
+    opposite === endView.model
+      ? endType === "source"
+      : referenceX < center.x;
+  return new joint.g.Point(
+    useLeft ? bounds.x : bounds.x + bounds.width,
+    bounds.y + attributeRowCenter(attributeIndex),
+  );
+}
 
 // JointJS's stock vertex handle is a 12 px circle. Keep that visual size while
 // giving pointer input a forgiving, transparent 28 px target. Pointer movement
@@ -269,6 +317,7 @@ export class JointJsAdapter {
         );
       },
       defaultConnectionPoint: { name: "boundary", args: { offset: 2 } },
+      defaultAnchor: relationshipEndpointAnchor,
     });
     // Paper.render() sets its element to position: relative. The paper element
     // is library-owned and must not participate in sizing the consumer host.
@@ -395,7 +444,11 @@ export class JointJsAdapter {
     if (!link) return;
     const waypoints = store.getWaypoints(relationshipId);
     link.vertices(waypoints, INTERNAL);
-    this.applyRouter(link, waypoints.length > 0);
+    this.applyRouter(
+      link,
+      store.getRelationship(relationshipId).routing ?? "auto",
+      waypoints.length > 0,
+    );
   }
 
   syncRelationship(relationshipId: string, store: DiagramStore): void {
@@ -435,7 +488,7 @@ export class JointJsAdapter {
         ? undefined
         : new joint.g.Rect(
             classBounds.x,
-            classBounds.y + CLASS_HEADER_HEIGHT + attributeIndex * ATTRIBUTE_LINE_HEIGHT,
+            classBounds.y + attributeRowTop(attributeIndex),
             classBounds.width,
             ATTRIBUTE_LINE_HEIGHT,
           );
@@ -693,11 +746,18 @@ export class JointJsAdapter {
       this.relationshipCells.set(relationship.id, link);
       this.graph.addCell(link, INTERNAL);
     }
-    const source = this.classCells.get(relationship.from);
-    const target = this.classCells.get(relationship.to);
+    const sourceEndpoint = normalizeRelationshipEndpoint(relationship.from);
+    const targetEndpoint = normalizeRelationshipEndpoint(relationship.to);
+    const source = this.classCells.get(sourceEndpoint.classId);
+    const target = this.classCells.get(targetEndpoint.classId);
     if (!source || !target) return;
-    link.source(source, INTERNAL);
-    link.target(target, INTERNAL);
+    this.setRelationshipEnd(link, "source", source, sourceEndpoint, store);
+    this.setRelationshipEnd(link, "target", target, targetEndpoint, store);
+    link.set(
+      "relationshipRouting",
+      relationship.routing ?? "auto",
+      INTERNAL,
+    );
 
     const appearance = getRelationshipAppearance(relationship.type);
     link.attr(
@@ -853,7 +913,46 @@ export class JointJsAdapter {
     };
   }
 
-  private applyRouter(link: joint.dia.Link, hasWaypoints: boolean): void {
+  private setRelationshipEnd(
+    link: joint.dia.Link,
+    end: "source" | "target",
+    cell: joint.dia.Element,
+    endpoint: RelationshipEndpoint,
+    store: DiagramStore,
+  ): void {
+    const attributeIndex =
+      endpoint.type === "attribute"
+        ? store
+            .getClass(endpoint.classId)
+            .attributes?.findIndex(
+              (attribute) => attribute.name === endpoint.attributeId,
+            )
+        : undefined;
+    if (attributeIndex === undefined || attributeIndex < 0) {
+      link.set(end, { id: cell.id }, INTERNAL);
+      return;
+    }
+    link.set(
+      end,
+      {
+        id: cell.id,
+        connectionPoint: { name: "anchor" },
+        modelDiagramAttributeIndex: attributeIndex,
+      },
+      INTERNAL,
+    );
+  }
+
+  private applyRouter(
+    link: joint.dia.Link,
+    routing: RelationshipRouting,
+    hasWaypoints: boolean,
+  ): void {
+    if (routing === "straight") {
+      link.router("normal", {}, INTERNAL);
+      link.connector("straight", {}, INTERNAL);
+      return;
+    }
     if (hasWaypoints) {
       link.router("normal", {}, INTERNAL);
       link.connector("rounded", { radius: 10 }, INTERNAL);
@@ -1063,6 +1162,7 @@ export class JointJsAdapter {
       const semanticLink = link as joint.dia.Link;
       const info = metadata(semanticLink);
       if (info?.kind !== "relationship") return;
+      if (semanticLink.get("relationshipRouting") === "straight") return;
       event.preventDefault();
       const localPoint = this.paper.clientToLocalPoint(
         event.clientX,
@@ -1124,6 +1224,7 @@ export class JointJsAdapter {
     if (!relationshipId) return;
     const link = this.relationshipCells.get(relationshipId);
     if (!link) return;
+    if (link.get("relationshipRouting") === "straight") return;
     const view = this.paper.requireView<joint.dia.LinkView>(link);
     view.addTools(
       new joint.dia.ToolsView({
@@ -1200,6 +1301,12 @@ export class JointJsAdapter {
     link: joint.dia.Link,
     end: "source" | "target",
   ): Position {
+    const view = this.paper.findViewByModel<joint.dia.LinkView>(link);
+    const connectionPoint =
+      end === "source" ? view?.sourcePoint : view?.targetPoint;
+    if (connectionPoint) {
+      return { x: connectionPoint.x, y: connectionPoint.y };
+    }
     const endpoint = end === "source" ? link.getSourceCell() : link.getTargetCell();
     return endpoint instanceof joint.dia.Element
       ? positionFromElement(endpoint as joint.dia.Element)
