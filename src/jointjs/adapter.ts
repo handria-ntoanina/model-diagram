@@ -20,7 +20,10 @@ import {
   positionsEqual,
 } from "../rendering/geometry.js";
 import type { DiagramStore } from "../rendering/store.js";
-import type { AttributeMarkerMode } from "../rendering/diagram.js";
+import type {
+  AttributeMarkerMode,
+  ClassContentMode,
+} from "../rendering/config.js";
 
 type MovableKind = "class" | "note";
 
@@ -300,6 +303,7 @@ export class JointJsAdapter {
     private readonly container: HTMLElement,
     editable: boolean,
     private attributeMarkerMode: AttributeMarkerMode,
+    private classContentMode: ClassContentMode,
     private readonly callbacks: JointJsAdapterCallbacks,
   ) {
     this.editable = editable;
@@ -376,7 +380,7 @@ export class JointJsAdapter {
         this.classCells.set(diagramClass.id, cell);
         this.graph.addCell(cell, INTERNAL);
       }
-      const size = classSize(diagramClass);
+      const size = classSize(diagramClass, this.classContentMode);
       cell.resize(size.width, size.height, INTERNAL);
       cell.position(
         store.getClassPosition(diagramClass.id).x - size.width / 2,
@@ -386,7 +390,13 @@ export class JointJsAdapter {
       cell.attr(
         {
           body: { width: size.width, height: size.height },
-          header: { width: size.width, height: CLASS_HEADER_HEIGHT },
+          header: {
+            width: size.width,
+            height:
+              this.classContentMode === "full"
+                ? CLASS_HEADER_HEIGHT
+                : size.height,
+          },
           stereotype: {
             text: diagramClass.stereotype ? `«${diagramClass.stereotype}»` : "",
             x: size.width / 2,
@@ -398,10 +408,14 @@ export class JointJsAdapter {
             y: diagramClass.stereotype ? 41 : 31,
           },
           attributes: {
-            text: formatAttributes(
-              diagramClass.attributes,
-              this.attributeMarkerMode,
-            ),
+            display: this.classContentMode === "full" ? "block" : "none",
+            text:
+              this.classContentMode === "full"
+                ? formatAttributes(
+                    diagramClass.attributes,
+                    this.attributeMarkerMode,
+                  )
+                : "",
             x: 14,
             y: CLASS_HEADER_HEIGHT + 18,
           },
@@ -447,7 +461,7 @@ export class JointJsAdapter {
   syncNotePosition(classId: string, store: DiagramStore): void {
     const cell = this.noteCells.get(classId);
     if (!cell) return;
-    const position = store.getNotePosition(classId);
+    const position = store.getNotePosition(classId, this.classContentMode);
     cell.position(
       position.x - NOTE_WIDTH / 2,
       position.y - NOTE_HEIGHT / 2,
@@ -489,6 +503,11 @@ export class JointJsAdapter {
     store: DiagramStore,
   ): void {
     this.attributeMarkerMode = mode;
+    this.render(store);
+  }
+
+  setClassContentMode(mode: ClassContentMode, store: DiagramStore): void {
+    this.classContentMode = mode;
     this.render(store);
   }
 
@@ -945,7 +964,7 @@ export class JointJsAdapter {
     store: DiagramStore,
   ): void {
     const attributeIndex =
-      endpoint.type === "attribute"
+      this.classContentMode === "full" && endpoint.type === "attribute"
         ? store
             .getClass(endpoint.classId)
             .attributes?.findIndex(
@@ -1303,8 +1322,19 @@ export class JointJsAdapter {
 
   private applySelectionAppearance(): void {
     for (const [id, cell] of this.classCells) {
-      cell.attr("body/stroke", this.selection?.kind === "class" && this.selection.id === id ? SELECTED_COLOR : LINE_COLOR, INTERNAL);
-      cell.attr("body/strokeWidth", this.selection?.kind === "class" && this.selection.id === id ? 2.5 : 1.5, INTERNAL);
+      const selected =
+        this.selection?.kind === "class" && this.selection.id === id;
+      const stroke = selected ? SELECTED_COLOR : LINE_COLOR;
+      const strokeWidth = selected ? 2.5 : 1.5;
+      cell.attr("body/stroke", stroke, INTERNAL);
+      cell.attr("body/strokeWidth", strokeWidth, INTERNAL);
+      if (this.classContentMode === "name-only") {
+        cell.attr("header/stroke", stroke, INTERNAL);
+        cell.attr("header/strokeWidth", strokeWidth, INTERNAL);
+      } else {
+        cell.attr("header/stroke", LINE_COLOR, INTERNAL);
+        cell.attr("header/strokeWidth", 1.5, INTERNAL);
+      }
     }
     for (const [id, cell] of this.noteCells) {
       cell.attr("body/stroke", this.selection?.kind === "note" && this.selection.id === id ? SELECTED_COLOR : "#b45309", INTERNAL);

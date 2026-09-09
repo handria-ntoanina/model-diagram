@@ -162,6 +162,7 @@ const eventPanelElement = eventPanel;
 const diagram = createDiagram(container, {
   model,
   editable: true,
+  classContentMode: "full",
   attributeMarkerMode: "visibility",
   layout: {
     relationships: {
@@ -268,6 +269,14 @@ document.querySelector<HTMLInputElement>("#editable")?.addEventListener(
   "change",
   (event) => diagram.setEditable((event.currentTarget as HTMLInputElement).checked),
 );
+document
+  .querySelector<HTMLSelectElement>("#class-content-mode")
+  ?.addEventListener("change", (event) => {
+    const mode = (event.currentTarget as HTMLSelectElement).value;
+    if (mode === "full" || mode === "name-only") {
+      diagram.setClassContentMode(mode);
+    }
+  });
 document
   .querySelector<HTMLSelectElement>("#attribute-marker-mode")
   ?.addEventListener("change", (event) => {

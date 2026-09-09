@@ -34,6 +34,45 @@ describe("ELK automatic layout", () => {
     expect(positions.get("person")).not.toEqual({ x: -400, y: 700 });
   });
 
+  it("lays out name-only classes using their compact rendered height", async () => {
+    const attributes = Array.from({ length: 12 }, (_, index) => ({
+      name: `field_${index}`,
+    }));
+    const model: DiagramModel = {
+      classes: [
+        { id: "source", name: "Source", attributes },
+        { id: "target", name: "Target", attributes },
+      ],
+      relationships: [
+        {
+          id: "source-target",
+          type: "association",
+          from: "source",
+          to: "target",
+        },
+      ],
+    };
+    const engine = new ElkLayoutEngine();
+    const full = await engine.layout(
+      model,
+      {},
+      { direction: "DOWN" },
+      { classContentMode: "full" },
+    );
+    const nameOnly = await engine.layout(
+      model,
+      {},
+      { direction: "DOWN" },
+      { classContentMode: "name-only" },
+    );
+    const fullDistance = Math.abs(full.get("target")!.y - full.get("source")!.y);
+    const compactDistance = Math.abs(
+      nameOnly.get("target")!.y - nameOnly.get("source")!.y,
+    );
+
+    expect(compactDistance).toBeLessThan(fullDistance);
+  });
+
   it("places an association class deterministically near its association", async () => {
     const model: DiagramModel = {
       classes: [

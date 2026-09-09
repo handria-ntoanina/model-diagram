@@ -16,6 +16,7 @@ import {
   defaultNotePosition,
   fallbackClassPosition,
 } from "./geometry.js";
+import type { ClassContentMode } from "./config.js";
 
 function normalizeOptionalText(value: string | undefined): string | undefined {
   return value?.trim() ? value : undefined;
@@ -179,11 +180,18 @@ export class DiagramStore {
     this.classPositions.set(id, copyPosition(position));
   }
 
-  getNotePosition(classId: string): Position {
+  getNotePosition(
+    classId: string,
+    classContentMode: ClassContentMode = "full",
+  ): Position {
     const manualPosition = this.notePositions.get(classId);
     if (manualPosition) return copyPosition(manualPosition);
     const diagramClass = this.getClass(classId);
-    return defaultNotePosition(this.getClassPosition(classId), diagramClass);
+    return defaultNotePosition(
+      this.getClassPosition(classId),
+      diagramClass,
+      classContentMode,
+    );
   }
 
   hasManualNotePosition(classId: string): boolean {

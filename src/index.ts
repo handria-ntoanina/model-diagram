@@ -2,12 +2,14 @@ export { createDiagram, ModelDiagram } from "./rendering/diagram.js";
 export type {
   CreateDiagramOptions,
   AttributeMarkerMode,
+  ClassContentMode,
   Diagram,
   DiagramFocusTarget,
 } from "./rendering/diagram.js";
 export type {
   AutoLayoutOptions,
   LayoutEngine,
+  LayoutRenderingContext,
 } from "./layout/elk-layout.js";
 export { DiagramValidationError } from "./model/validation.js";
 export {

@@ -1,4 +1,5 @@
 import type { DiagramClass, Position } from "../model/types.js";
+import type { ClassContentMode } from "./config.js";
 
 export interface Size {
   width: number;
@@ -21,7 +22,13 @@ export function attributeRowCenter(attributeIndex: number): number {
   return attributeRowTop(attributeIndex) + ATTRIBUTE_LINE_HEIGHT / 2;
 }
 
-export function classSize(diagramClass: DiagramClass): Size {
+export function classSize(
+  diagramClass: DiagramClass,
+  classContentMode: ClassContentMode = "full",
+): Size {
+  if (classContentMode === "name-only") {
+    return { width: CLASS_WIDTH, height: CLASS_HEADER_HEIGHT };
+  }
   const attributesHeight =
     (diagramClass.attributes?.length ?? 0) * ATTRIBUTE_LINE_HEIGHT;
   return {
@@ -36,8 +43,9 @@ export function classSize(diagramClass: DiagramClass): Size {
 export function defaultNotePosition(
   classPosition: Position,
   diagramClass: DiagramClass,
+  classContentMode: ClassContentMode = "full",
 ): Position {
-  const size = classSize(diagramClass);
+  const size = classSize(diagramClass, classContentMode);
   return {
     x: classPosition.x,
     y: classPosition.y + size.height / 2 + NOTE_GAP + NOTE_HEIGHT / 2,

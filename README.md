@@ -98,6 +98,7 @@ const diagram = createDiagram(document.querySelector("#diagram")!, {
   model,
   layout: storedLayout,
   editable: true,
+  classContentMode: "full",
   attributeMarkerMode: "requiredness",
 });
 
@@ -210,6 +211,32 @@ diagram.setAttributeMarkerMode("visibility");
 diagram.setAttributeMarkerMode("none");
 diagram.setAttributeMarkerMode("requiredness");
 ```
+
+The diagram-level `classContentMode` setting controls whether those attribute
+rows are visible:
+
+| Mode | Class rendering |
+| --- | --- |
+| `"full"` | Renders the class name and its normal attribute compartment. This is the default. |
+| `"name-only"` | Renders a compact class box containing the class header and name only. No attribute rows, separator, or empty compartment is rendered. |
+
+This is a rendering preference only. Hidden attributes remain in
+`DiagramModel` with their IDs, types, requiredness, visibility, and other
+semantic properties unchanged. Runtime changes preserve class centers,
+relationships, explicit waypoints, selection, and undo/redo history:
+
+```ts
+diagram.setClassContentMode("name-only");
+diagram.setClassContentMode("full");
+```
+
+Attribute endpoints also remain semantic attribute endpoints in name-only
+mode. They attach visually to the owning class boundary using normal routing
+and side selection. Switching back to full automatically reattaches each
+relationship to its exact attribute row without replacing the model or
+rewriting the endpoint. `classContentMode` takes visual precedence over
+`attributeMarkerMode`; a marker preference changed while attributes are hidden
+appears normally when full content is restored.
 
 An association is a plain solid line, while a directed association adds an open arrow at its `to` endpoint.
 Aggregation uses a hollow diamond and composition a filled diamond at their
@@ -522,13 +549,17 @@ attribute. It preserves a readable current zoom, pans or centers as needed,
 and only changes zoom when the target would otherwise be too small or would not
 fit. Focusing an attribute keeps it inside its owning class; `select: true`
 uses the existing class selection and emits only the normal `selection-changed`
-event when that selection changes. Focusing never changes model or layout data
-and does not add undo history.
+event when that selection changes. In `"name-only"` mode, the method still
+validates the semantic attribute but focuses the owning class as the visible
+fallback; it does not reveal or fabricate a row. Restoring `"full"` mode also
+restores row-specific focus. Focusing never changes model or layout data and
+does not add undo history.
 
 ## Read-only mode and updates
 
 ```ts
 diagram.setEditable(false); // pan, zoom, and selection remain enabled
+diagram.setClassContentMode("name-only"); // rendering-only preference
 diagram.setAttributeMarkerMode("visibility"); // rendering-only preference
 diagram.setLayout(nextLayout);
 diagram.setModel(nextModel);
@@ -570,9 +601,11 @@ npm install
 npm run demo
 ```
 
-The demo contains all six relationship types, an Enrollment association-class
-example, labels and multiplicities, notes, automatic layout, drag and waypoint
-editing, viewport controls, a read-only toggle, and a semantic event log. It is
+The demo contains full and name-only class content controls, all six
+relationship types, an Enrollment association-class example, labels and
+multiplicities, notes, automatic layout, drag and waypoint editing, viewport
+controls, a read-only toggle, and a semantic event log. The attribute-targeted
+relationship demonstrates endpoint reattachment while switching modes. It is
 excluded from the runtime package.
 
 ## Licensing

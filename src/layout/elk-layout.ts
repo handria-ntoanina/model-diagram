@@ -11,6 +11,7 @@ import {
   classSize,
   type Size,
 } from "../rendering/geometry.js";
+import type { ClassContentMode } from "../rendering/config.js";
 
 export interface AutoLayoutOptions {
   direction?: "RIGHT" | "DOWN" | "LEFT" | "UP";
@@ -24,7 +25,12 @@ export interface LayoutEngine {
     model: DiagramModel,
     storedLayout?: DiagramLayout,
     options?: AutoLayoutOptions,
+    rendering?: LayoutRenderingContext,
   ): Promise<Map<string, Position>>;
+}
+
+export interface LayoutRenderingContext {
+  classContentMode: ClassContentMode;
 }
 
 interface PlacedNode {
@@ -36,8 +42,9 @@ const ASSOCIATION_CLASS_ROUTE_GAP = 90;
 
 function layoutSize(
   diagramClass: DiagramModel["classes"][number],
+  classContentMode: ClassContentMode,
 ): Size {
-  const size = classSize(diagramClass);
+  const size = classSize(diagramClass, classContentMode);
   return diagramClass.note
     ? { width: size.width, height: size.height + NOTE_GAP + NOTE_HEIGHT }
     : size;
@@ -46,9 +53,10 @@ function layoutSize(
 function classToLayoutCenter(
   classPosition: Position,
   diagramClass: DiagramModel["classes"][number],
+  classContentMode: ClassContentMode,
 ): Position {
-  const classDimensions = classSize(diagramClass);
-  const footprint = layoutSize(diagramClass);
+  const classDimensions = classSize(diagramClass, classContentMode);
+  const footprint = layoutSize(diagramClass, classContentMode);
   return {
     x: classPosition.x,
     y: classPosition.y + (footprint.height - classDimensions.height) / 2,
@@ -58,9 +66,10 @@ function classToLayoutCenter(
 function layoutCenterToClass(
   center: Position,
   diagramClass: DiagramModel["classes"][number],
+  classContentMode: ClassContentMode,
 ): Position {
-  const classDimensions = classSize(diagramClass);
-  const footprint = layoutSize(diagramClass);
+  const classDimensions = classSize(diagramClass, classContentMode);
+  const footprint = layoutSize(diagramClass, classContentMode);
   return {
     x: center.x,
     y: center.y - (footprint.height - classDimensions.height) / 2,
@@ -108,9 +117,11 @@ export class ElkLayoutEngine implements LayoutEngine {
     model: DiagramModel,
     storedLayout: DiagramLayout = {},
     options: AutoLayoutOptions = {},
+    rendering: LayoutRenderingContext = { classContentMode: "full" },
   ): Promise<Map<string, Position>> {
+    const { classContentMode } = rendering;
     const children: ElkNode[] = model.classes.map((diagramClass) => {
-      const size = layoutSize(diagramClass);
+      const size = layoutSize(diagramClass, classContentMode);
       return { id: diagramClass.id, width: size.width, height: size.height };
     });
     const edges: ElkExtendedEdge[] = model.relationships.map((relationship) => ({
@@ -152,8 +163,12 @@ export class ElkLayoutEngine implements LayoutEngine {
         if (!position) continue;
         positions.set(diagramClass.id, { ...position });
         occupied.push({
-          position: classToLayoutCenter(position, diagramClass),
-          size: layoutSize(diagramClass),
+          position: classToLayoutCenter(
+            position,
+            diagramClass,
+            classContentMode,
+          ),
+          size: layoutSize(diagramClass, classContentMode),
         });
         const manualNote = storedLayout.notes?.[diagramClass.id];
         if (manualNote) {
@@ -170,13 +185,16 @@ export class ElkLayoutEngine implements LayoutEngine {
       const diagramClass = model.classes.find(({ id }) => id === node.id);
       if (!diagramClass) continue;
       if (associationClassIds.has(node.id)) continue;
-      const size = layoutSize(diagramClass);
+      const size = layoutSize(diagramClass, classContentMode);
       const desiredCenter = {
         x: (node.x ?? 0) + size.width / 2,
         y: (node.y ?? 0) + size.height / 2,
       };
       const center = findFreePosition(desiredCenter, size, occupied);
-      positions.set(node.id, layoutCenterToClass(center, diagramClass));
+      positions.set(
+        node.id,
+        layoutCenterToClass(center, diagramClass, classContentMode),
+      );
       occupied.push({ position: center, size });
     }
 
@@ -202,7 +220,7 @@ export class ElkLayoutEngine implements LayoutEngine {
           : [];
       });
       const node = layoutNodes.get(diagramClass.id);
-      const size = layoutSize(diagramClass);
+      const size = layoutSize(diagramClass, classContentMode);
       const fallbackCenter = {
         x: (node?.x ?? 0) + size.width / 2,
         y: (node?.y ?? 0) + size.height / 2,
@@ -217,7 +235,11 @@ export class ElkLayoutEngine implements LayoutEngine {
                 midpoints.reduce((total, point) => total + point.y, 0) /
                 midpoints.length,
             }
-          : layoutCenterToClass(fallbackCenter, diagramClass);
+          : layoutCenterToClass(
+              fallbackCenter,
+              diagramClass,
+              classContentMode,
+            );
       const direction = options.direction ?? "RIGHT";
       const desiredClassPosition =
         direction === "RIGHT" || direction === "LEFT"
@@ -225,24 +247,25 @@ export class ElkLayoutEngine implements LayoutEngine {
               x: relationshipMidpoint.x,
               y:
                 relationshipMidpoint.y +
-                classSize(diagramClass).height / 2 +
+                classSize(diagramClass, classContentMode).height / 2 +
                 ASSOCIATION_CLASS_ROUTE_GAP,
             }
           : {
               x:
                 relationshipMidpoint.x +
-                classSize(diagramClass).width / 2 +
+                classSize(diagramClass, classContentMode).width / 2 +
                 ASSOCIATION_CLASS_ROUTE_GAP,
               y: relationshipMidpoint.y,
             };
       const desiredCenter = classToLayoutCenter(
         desiredClassPosition,
         diagramClass,
+        classContentMode,
       );
       const center = findFreePosition(desiredCenter, size, occupied);
       positions.set(
         diagramClass.id,
-        layoutCenterToClass(center, diagramClass),
+        layoutCenterToClass(center, diagramClass, classContentMode),
       );
       occupied.push({ position: center, size });
     }

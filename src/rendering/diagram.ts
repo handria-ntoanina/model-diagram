@@ -21,6 +21,14 @@ import type {
 import { normalizeRelationshipEndpoint } from "../model/relationship-endpoint.js";
 import { positionsEqual } from "./geometry.js";
 import { DiagramStore } from "./store.js";
+import {
+  validateAttributeMarkerMode,
+  validateClassContentMode,
+  type AttributeMarkerMode,
+  type ClassContentMode,
+} from "./config.js";
+
+export type { AttributeMarkerMode, ClassContentMode } from "./config.js";
 
 export interface CreateDiagramOptions {
   model: DiagramModel;
@@ -28,18 +36,11 @@ export interface CreateDiagramOptions {
   editable?: boolean;
   /** Controls the semantic prefix rendered before every attribute. */
   attributeMarkerMode?: AttributeMarkerMode;
+  /** Controls whether class attribute compartments are rendered. */
+  classContentMode?: ClassContentMode;
   autoLayout?: boolean;
   /** Primarily useful for deterministic tests or a custom ELK worker setup. */
   layoutEngine?: LayoutEngine;
-}
-
-export type AttributeMarkerMode = "requiredness" | "visibility" | "none";
-
-function validateAttributeMarkerMode(value: unknown): AttributeMarkerMode {
-  if (value === "requiredness" || value === "visibility" || value === "none") {
-    return value;
-  }
-  throw new TypeError(`Unsupported attribute marker mode "${String(value)}"`);
 }
 
 export type DiagramFocusTarget =
@@ -68,6 +69,7 @@ export interface Diagram {
   setLayout(layout: DiagramLayout): void;
   setEditable(editable: boolean): void;
   setAttributeMarkerMode(mode: AttributeMarkerMode): void;
+  setClassContentMode(mode: ClassContentMode): void;
   getLayout(): DiagramLayout;
   canUndo(): boolean;
   canRedo(): boolean;
@@ -231,6 +233,7 @@ export class ModelDiagram implements Diagram {
   private readonly layoutEngine: LayoutEngine;
   private editable: boolean;
   private attributeMarkerMode: AttributeMarkerMode;
+  private classContentMode: ClassContentMode;
   private selection: DiagramSelection | null = null;
   private readyPromise: Promise<void> = Promise.resolve();
   private destroyed = false;
@@ -247,26 +250,30 @@ export class ModelDiagram implements Diagram {
     this.attributeMarkerMode = validateAttributeMarkerMode(
       options.attributeMarkerMode ?? "requiredness",
     );
+    this.classContentMode = validateClassContentMode(
+      options.classContentMode ?? "full",
+    );
     this.store = new DiagramStore(options.model, options.layout);
     this.layoutEngine = options.layoutEngine ?? new ElkLayoutEngine();
     this.renderer = new JointJsAdapter(
       container,
       this.editable,
       this.attributeMarkerMode,
+      this.classContentMode,
       {
-      onSelectionChanged: (selection) => this.changeSelection(selection),
-      onPositionDragStarted: (kind, id) => this.beginElementDrag(kind, id),
-      onPositionPreview: (kind, id, position) =>
-        this.previewElementPosition(kind, id, position),
-      onPositionCommitted: (kind, id, before, after) =>
-        this.commitElementPosition(kind, id, before, after),
-      onWaypointsPreview: (id, waypoints) =>
-        this.previewWaypoints(id, waypoints),
-      onWaypointsCommitted: (id, before, after) =>
-        this.commitWaypoints(id, before, after),
-      onWaypointAddRequested: (id, position, index) =>
-        this.addRelationshipWaypoint(id, position, index),
-      onDeleteSelectedWaypoint: () => this.deleteSelectedWaypoint(),
+        onSelectionChanged: (selection) => this.changeSelection(selection),
+        onPositionDragStarted: (kind, id) => this.beginElementDrag(kind, id),
+        onPositionPreview: (kind, id, position) =>
+          this.previewElementPosition(kind, id, position),
+        onPositionCommitted: (kind, id, before, after) =>
+          this.commitElementPosition(kind, id, before, after),
+        onWaypointsPreview: (id, waypoints) =>
+          this.previewWaypoints(id, waypoints),
+        onWaypointsCommitted: (id, before, after) =>
+          this.commitWaypoints(id, before, after),
+        onWaypointAddRequested: (id, position, index) =>
+          this.addRelationshipWaypoint(id, position, index),
+        onDeleteSelectedWaypoint: () => this.deleteSelectedWaypoint(),
       },
     );
     this.renderer.render(this.store);
@@ -342,6 +349,14 @@ export class ModelDiagram implements Diagram {
     if (nextMode === this.attributeMarkerMode) return;
     this.attributeMarkerMode = nextMode;
     this.renderer.setAttributeMarkerMode(nextMode, this.store);
+  }
+
+  setClassContentMode(mode: ClassContentMode): void {
+    this.assertAlive();
+    const nextMode = validateClassContentMode(mode);
+    if (nextMode === this.classContentMode) return;
+    this.classContentMode = nextMode;
+    this.renderer.setClassContentMode(nextMode, this.store);
   }
 
   getLayout(): DiagramLayout {
@@ -568,7 +583,11 @@ export class ModelDiagram implements Diagram {
       if (attributeIndex < 0) return false;
     }
 
-    if (!this.renderer.focusClass(classId, attributeIndex)) return false;
+    const renderedAttributeIndex =
+      this.classContentMode === "full" ? attributeIndex : undefined;
+    if (!this.renderer.focusClass(classId, renderedAttributeIndex)) {
+      return false;
+    }
     if (target.select) this.changeSelection({ kind: "class", id: classId });
     return true;
   }
@@ -619,6 +638,7 @@ export class ModelDiagram implements Diagram {
       model,
       storedLayout,
       options,
+      { classContentMode: this.classContentMode },
     );
     if (this.destroyed || generation !== this.layoutGeneration) {
       return this.store.getLayout();

@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { clientToDiagramPosition } from "../src/rendering/geometry.js";
+import {
+  classSize,
+  clientToDiagramPosition,
+} from "../src/rendering/geometry.js";
 
 describe("viewport coordinate conversion", () => {
   it("converts client coordinates after zoom and pan", () => {
@@ -22,5 +25,24 @@ describe("viewport coordinate conversion", () => {
         { x: 100, y: -60 },
       ),
     ).toEqual({ x: -400, y: 600 });
+  });
+});
+
+describe("class rendering geometry", () => {
+  it("uses the header as the complete name-only box", () => {
+    const diagramClass = {
+      id: "customer",
+      name: "Customer",
+      attributes: [{ name: "code" }, { name: "email" }],
+    };
+
+    expect(classSize(diagramClass, "full")).toEqual({
+      width: 260,
+      height: 118,
+    });
+    expect(classSize(diagramClass, "name-only")).toEqual({
+      width: 260,
+      height: 58,
+    });
   });
 });
