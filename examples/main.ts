@@ -15,8 +15,10 @@ const model: DiagramModel = {
       stereotype: "abstract",
       note: "A person or organisation participating in land administration.",
       attributes: [
-        { name: "id", type: "UUID", required: true },
-        { name: "name", type: "CharacterString", required: true },
+        { name: "id", type: "UUID", required: true, visibility: "public" },
+        { name: "internalState", type: "State", visibility: "private" },
+        { name: "value", type: "Decimal", visibility: "protected" },
+        { name: "helper", type: "Operation", visibility: "package" },
       ],
     },
     {
@@ -160,6 +162,7 @@ const eventPanelElement = eventPanel;
 const diagram = createDiagram(container, {
   model,
   editable: true,
+  attributeMarkerMode: "visibility",
   layout: {
     relationships: {
       "right-source": {
@@ -265,5 +268,13 @@ document.querySelector<HTMLInputElement>("#editable")?.addEventListener(
   "change",
   (event) => diagram.setEditable((event.currentTarget as HTMLInputElement).checked),
 );
+document
+  .querySelector<HTMLSelectElement>("#attribute-marker-mode")
+  ?.addEventListener("change", (event) => {
+    const mode = (event.currentTarget as HTMLSelectElement).value;
+    if (mode === "requiredness" || mode === "visibility" || mode === "none") {
+      diagram.setAttributeMarkerMode(mode);
+    }
+  });
 
 void diagram.whenReady().then(() => diagram.fitToContent());

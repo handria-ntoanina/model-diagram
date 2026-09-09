@@ -46,9 +46,17 @@ export interface DiagramAttribute {
   name: string;
   type?: string;
   required?: boolean;
+  /** UML visibility semantics, independent of whether the attribute is required. */
+  visibility?: DiagramAttributeVisibility;
   multiplicity?: string;
   description?: string;
 }
+
+export type DiagramAttributeVisibility =
+  | "public"
+  | "private"
+  | "protected"
+  | "package";
 
 export interface DiagramRelationship {
   id: string;

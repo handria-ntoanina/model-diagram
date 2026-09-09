@@ -1,6 +1,7 @@
 export { createDiagram, ModelDiagram } from "./rendering/diagram.js";
 export type {
   CreateDiagramOptions,
+  AttributeMarkerMode,
   Diagram,
   DiagramFocusTarget,
 } from "./rendering/diagram.js";
@@ -18,6 +19,7 @@ export type {
   ClassId,
   ClassRelationshipEndpoint,
   DiagramAttribute,
+  DiagramAttributeVisibility,
   DiagramClass,
   DiagramLayout,
   DiagramModel,

@@ -1,10 +1,18 @@
 import type {
+  DiagramAttributeVisibility,
   DiagramClass,
   DiagramLayout,
   DiagramModel,
   Position,
   RelationshipType,
 } from "./types.js";
+
+const ATTRIBUTE_VISIBILITY_VALUES = new Set<DiagramAttributeVisibility>([
+  "public",
+  "private",
+  "protected",
+  "package",
+]);
 
 const RELATIONSHIP_TYPES = new Set<RelationshipType>([
   "association",
@@ -118,6 +126,18 @@ export function validateDiagramModel(model: DiagramModel): void {
 
     if (diagramClass.name.trim() === "") {
       issues.push(`class "${diagramClass.id}" must have a name`);
+    }
+    for (const [attributeIndex, attribute] of (
+      diagramClass.attributes ?? []
+    ).entries()) {
+      if (
+        attribute.visibility !== undefined &&
+        !ATTRIBUTE_VISIBILITY_VALUES.has(attribute.visibility)
+      ) {
+        issues.push(
+          `classes[${index}].attributes[${attributeIndex}] has unsupported visibility "${String(attribute.visibility)}"`,
+        );
+      }
     }
   }
 

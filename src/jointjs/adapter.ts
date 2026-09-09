@@ -20,6 +20,7 @@ import {
   positionsEqual,
 } from "../rendering/geometry.js";
 import type { DiagramStore } from "../rendering/store.js";
+import type { AttributeMarkerMode } from "../rendering/diagram.js";
 
 type MovableKind = "class" | "note";
 
@@ -189,16 +190,27 @@ function metadata(cell: joint.dia.Cell): SemanticMetadata | undefined {
 
 function formatAttributes(
   attributes: ReturnType<DiagramStore["getClass"]>["attributes"],
+  markerMode: AttributeMarkerMode,
 ): string {
   if (!attributes || attributes.length === 0) return "(no attributes)";
   return attributes
     .map((attribute) => {
-      const indicator = attribute.required ? "●" : "○";
+      const marker =
+        markerMode === "requiredness"
+          ? attribute.required
+            ? "●"
+            : "○"
+          : markerMode === "visibility"
+            ? ({ public: "+", private: "-", protected: "#", package: "~" } as const)[
+                attribute.visibility ?? "public"
+              ]
+            : "";
       const type = attribute.type ? `: ${attribute.type}` : "";
       const multiplicity = attribute.multiplicity
         ? ` [${attribute.multiplicity}]`
         : "";
-      return `${indicator} ${attribute.name}${type}${multiplicity}`;
+      const prefix = marker ? `${marker} ` : "";
+      return `${prefix}${attribute.name}${type}${multiplicity}`;
     })
     .join("\n");
 }
@@ -287,6 +299,7 @@ export class JointJsAdapter {
   constructor(
     private readonly container: HTMLElement,
     editable: boolean,
+    private attributeMarkerMode: AttributeMarkerMode,
     private readonly callbacks: JointJsAdapterCallbacks,
   ) {
     this.editable = editable;
@@ -385,7 +398,10 @@ export class JointJsAdapter {
             y: diagramClass.stereotype ? 41 : 31,
           },
           attributes: {
-            text: formatAttributes(diagramClass.attributes),
+            text: formatAttributes(
+              diagramClass.attributes,
+              this.attributeMarkerMode,
+            ),
             x: 14,
             y: CLASS_HEADER_HEIGHT + 18,
           },
@@ -466,6 +482,14 @@ export class JointJsAdapter {
     });
     if (!editable) this.removeTools();
     else this.showRelationshipTools();
+  }
+
+  setAttributeMarkerMode(
+    mode: AttributeMarkerMode,
+    store: DiagramStore,
+  ): void {
+    this.attributeMarkerMode = mode;
+    this.render(store);
   }
 
   setSelection(selection: DiagramSelection | null): void {

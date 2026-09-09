@@ -26,9 +26,20 @@ export interface CreateDiagramOptions {
   model: DiagramModel;
   layout?: DiagramLayout;
   editable?: boolean;
+  /** Controls the semantic prefix rendered before every attribute. */
+  attributeMarkerMode?: AttributeMarkerMode;
   autoLayout?: boolean;
   /** Primarily useful for deterministic tests or a custom ELK worker setup. */
   layoutEngine?: LayoutEngine;
+}
+
+export type AttributeMarkerMode = "requiredness" | "visibility" | "none";
+
+function validateAttributeMarkerMode(value: unknown): AttributeMarkerMode {
+  if (value === "requiredness" || value === "visibility" || value === "none") {
+    return value;
+  }
+  throw new TypeError(`Unsupported attribute marker mode "${String(value)}"`);
 }
 
 export type DiagramFocusTarget =
@@ -56,6 +67,7 @@ export interface Diagram {
   setModel(model: DiagramModel): void;
   setLayout(layout: DiagramLayout): void;
   setEditable(editable: boolean): void;
+  setAttributeMarkerMode(mode: AttributeMarkerMode): void;
   getLayout(): DiagramLayout;
   canUndo(): boolean;
   canRedo(): boolean;
@@ -218,6 +230,7 @@ export class ModelDiagram implements Diagram {
   private readonly renderer: JointJsAdapter;
   private readonly layoutEngine: LayoutEngine;
   private editable: boolean;
+  private attributeMarkerMode: AttributeMarkerMode;
   private selection: DiagramSelection | null = null;
   private readyPromise: Promise<void> = Promise.resolve();
   private destroyed = false;
@@ -231,9 +244,16 @@ export class ModelDiagram implements Diagram {
       throw new TypeError("createDiagram requires an HTMLElement container");
     }
     this.editable = options.editable ?? false;
+    this.attributeMarkerMode = validateAttributeMarkerMode(
+      options.attributeMarkerMode ?? "requiredness",
+    );
     this.store = new DiagramStore(options.model, options.layout);
     this.layoutEngine = options.layoutEngine ?? new ElkLayoutEngine();
-    this.renderer = new JointJsAdapter(container, this.editable, {
+    this.renderer = new JointJsAdapter(
+      container,
+      this.editable,
+      this.attributeMarkerMode,
+      {
       onSelectionChanged: (selection) => this.changeSelection(selection),
       onPositionDragStarted: (kind, id) => this.beginElementDrag(kind, id),
       onPositionPreview: (kind, id, position) =>
@@ -247,7 +267,8 @@ export class ModelDiagram implements Diagram {
       onWaypointAddRequested: (id, position, index) =>
         this.addRelationshipWaypoint(id, position, index),
       onDeleteSelectedWaypoint: () => this.deleteSelectedWaypoint(),
-    });
+      },
+    );
     this.renderer.render(this.store);
 
     const missingStoredPosition = options.model.classes.some(
@@ -313,6 +334,14 @@ export class ModelDiagram implements Diagram {
     ) {
       this.emitHistoryChanged();
     }
+  }
+
+  setAttributeMarkerMode(mode: AttributeMarkerMode): void {
+    this.assertAlive();
+    const nextMode = validateAttributeMarkerMode(mode);
+    if (nextMode === this.attributeMarkerMode) return;
+    this.attributeMarkerMode = nextMode;
+    this.renderer.setAttributeMarkerMode(nextMode, this.store);
   }
 
   getLayout(): DiagramLayout {

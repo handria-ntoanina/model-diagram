@@ -11,6 +11,23 @@ describe("model validation", () => {
     expect(() => validateDiagramModel(modelFixture())).not.toThrow();
   });
 
+  it.each(["public", "private", "protected", "package"] as const)(
+    "accepts %s attribute visibility",
+    (visibility) => {
+      const model = modelFixture();
+      model.classes[0]!.attributes![0]!.visibility = visibility;
+      expect(() => validateDiagramModel(model)).not.toThrow();
+    },
+  );
+
+  it("rejects unsupported attribute visibility", () => {
+    const model = modelFixture();
+    Object.assign(model.classes[0]!.attributes![0]!, { visibility: "internal" });
+    expect(() => validateDiagramModel(model)).toThrowError(
+      /attributes\[0\] has unsupported visibility "internal"/,
+    );
+  });
+
   it("accepts directed associations as a public relationship type", () => {
     const model = modelFixture();
     model.relationships[1]!.type = "directed-association";

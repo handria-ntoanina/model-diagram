@@ -98,6 +98,7 @@ const diagram = createDiagram(document.querySelector("#diagram")!, {
   model,
   layout: storedLayout,
   editable: true,
+  attributeMarkerMode: "requiredness",
 });
 
 const unsubscribe = diagram.on("class-position-changed", (event) => {
@@ -143,6 +144,7 @@ interface DiagramAttribute {
   name: string;
   type?: string;
   required?: boolean;
+  visibility?: "public" | "private" | "protected" | "package";
   multiplicity?: string;
   description?: string;
 }
@@ -189,9 +191,27 @@ invalid.
 distinct from `role`, relationship type, and endpoint multiplicities. Empty or
 whitespace-only relationship labels are normalized as absent.
 
-Class attributes render in input order. A filled dot marks required attributes
-and an open dot marks optional attributes. An association is a plain solid
-line, while a directed association adds an open arrow at its `to` endpoint.
+Class attributes render in input order. The diagram-level
+`attributeMarkerMode` rendering preference controls their prefix:
+
+| Mode | Prefix behavior |
+| --- | --- |
+| `"requiredness"` | A filled dot marks `required: true`; an open dot marks other attributes. This is the default for backward compatibility. |
+| `"visibility"` | UML visibility symbols: `public` → `+`, `private` → `-`, `protected` → `#`, and `package` → `~`. Missing visibility defaults to `public` (`+`). |
+| `"none"` | No prefix or reserved prefix spacing is rendered. |
+
+`visibility` and `required` are independent semantic properties. Rendering
+mode only chooses which property is represented by the prefix; it does not
+infer one from the other or mutate the model. Change the preference at runtime
+without replacing semantic model state:
+
+```ts
+diagram.setAttributeMarkerMode("visibility");
+diagram.setAttributeMarkerMode("none");
+diagram.setAttributeMarkerMode("requiredness");
+```
+
+An association is a plain solid line, while a directed association adds an open arrow at its `to` endpoint.
 Aggregation uses a hollow diamond and composition a filled diamond at their
 `from` (owning) endpoints. Inheritance uses a hollow target triangle, and a
 dependency uses a dashed line with an open target arrow.
@@ -509,6 +529,7 @@ and does not add undo history.
 
 ```ts
 diagram.setEditable(false); // pan, zoom, and selection remain enabled
+diagram.setAttributeMarkerMode("visibility"); // rendering-only preference
 diagram.setLayout(nextLayout);
 diagram.setModel(nextModel);
 const currentModel = diagram.getModel(); // detached semantic snapshot

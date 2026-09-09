@@ -109,6 +109,49 @@ afterEach(() => {
 });
 
 describe("public lifecycle", () => {
+  it("renders requiredness by default and switches marker modes without changing the model", () => {
+    const container = makeContainer();
+    const model = modelFixture();
+    Object.assign(model.classes[0]!.attributes![0]!, { visibility: "private" });
+    const diagram = createDiagram(container, { model, autoLayout: false });
+    diagrams.push(diagram);
+    const renderedAttributes = (): string =>
+      container.querySelector<SVGElement>('[joint-selector="attributes"]')
+        ?.textContent ?? "";
+    const semanticModel = diagram.getModel();
+
+    expect(renderedAttributes()).toContain("● name");
+    expect(renderedAttributes()).toContain("○ aliases");
+    diagram.setAttributeMarkerMode("visibility");
+    expect(renderedAttributes()).toContain("- name");
+    expect(renderedAttributes()).toContain("+ aliases");
+    diagram.setAttributeMarkerMode("none");
+    expect(renderedAttributes()).toContain("name: string");
+    expect(renderedAttributes()).not.toMatch(/[●○+~-] /);
+    expect(diagram.getModel()).toEqual(semanticModel);
+    expect(diagram.canUndo()).toBe(false);
+  });
+
+  it("preserves attribute visibility through detached snapshots and setModel", () => {
+    const diagram = makeDiagram();
+    const model = modelFixture();
+    model.classes[0]!.attributes![0]!.visibility = "protected";
+    diagram.setModel(model);
+    const snapshot = diagram.getModel();
+    expect(snapshot.classes[0]!.attributes![0]!.visibility).toBe("protected");
+    snapshot.classes[0]!.attributes![0]!.visibility = "package";
+    expect(diagram.getModel().classes[0]!.attributes![0]!.visibility).toBe(
+      "protected",
+    );
+  });
+
+  it("rejects an invalid runtime marker mode", () => {
+    const diagram = makeDiagram();
+    expect(() =>
+      diagram.setAttributeMarkerMode("symbols" as "visibility"),
+    ).toThrowError(/Unsupported attribute marker mode "symbols"/);
+  });
+
   it("supports setModel while preserving stable layout ids", () => {
     const diagram = makeDiagram({
       layout: { classes: { person: { x: 111, y: 222 } } },
