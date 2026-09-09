@@ -216,8 +216,8 @@ multiplicities and an arrow at `class-b`. Cardinalities such as one-to-many or
 many-to-many are not relationship types.
 
 Endpoint kind and routing are independent of relationship type. This directed
-association attaches directly to the `code` row and renders as one straight
-segment:
+association attaches directly to the `code` row and renders with straight
+segments:
 
 ```ts
 {
@@ -234,8 +234,8 @@ segment:
 ```
 
 Omitting `routing`, or setting it to `"auto"`, retains automatic Manhattan
-routing. `"straight"` uses a direct segment between the resolved class or
-attribute-row attachment points while preserving markers and labels.
+routing. `"straight"` draws straight segments through any explicit waypoints
+in order while preserving semantic attachment points, markers, and labels.
 
 ### Association classes
 
@@ -313,11 +313,41 @@ of persisted layout.
 - A note without stored coordinates follows its class at a default offset.
 - A stored note position makes that note independent of later class movement.
 - An auto-routed relationship without waypoints uses Manhattan routing.
-- A relationship with waypoints preserves their order and uses those points
-  while its endpoint segments continue to follow moved classes.
-- A straight relationship does not use waypoints. Persisted waypoints are
-  rejected, and waypoint commands throw. Reset an existing route before
-  changing its routing to `"straight"`.
+- A relationship with waypoints preserves their order and coordinates while
+  its endpoint segments continue to follow moved classes.
+- A straight relationship without waypoints is one direct segment. With one
+  or more waypoints, it is a polyline made exclusively of straight segments
+  through those points in order; it never invokes automatic routing.
+- Resetting a straight route removes all waypoints without changing its
+  `"straight"` routing mode.
+
+For example, the route below has three straight segments:
+
+```ts
+const model = {
+  // ...
+  relationships: [
+    {
+      id: "class-a-class-b",
+      from: "class-a",
+      to: "class-b",
+      type: "directed-association",
+      routing: "straight",
+    },
+  ],
+};
+
+const layout = {
+  relationships: {
+    "class-a-class-b": {
+      waypoints: [
+        { x: 320, y: 180 },
+        { x: 480, y: 300 },
+      ],
+    },
+  },
+};
+```
 
 `diagram.getLayout()` returns current class centers, manual note centers, and
 non-empty waypoint lists. Layout is owned per diagram instance, so the same

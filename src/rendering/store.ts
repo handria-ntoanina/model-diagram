@@ -95,8 +95,6 @@ export class DiagramStore {
     for (const relationship of model.relationships) {
       if (!this.relationshipWaypoints.has(relationship.id)) {
         this.relationshipWaypoints.set(relationship.id, []);
-      } else if (relationship.routing === "straight") {
-        this.relationshipWaypoints.set(relationship.id, []);
       }
     }
     this.modelValue = cloneModel(model);
@@ -164,14 +162,6 @@ export class DiagramStore {
           `Unsupported relationship routing "${String(changes.routing)}"`,
         );
       }
-      if (
-        changes.routing === "straight" &&
-        this.getWaypoints(id).length > 0
-      ) {
-        throw new Error(
-          `Straight relationship "${id}" cannot retain waypoints; reset its route first`,
-        );
-      }
       if (changes.routing === undefined) delete next.routing;
       else next.routing = changes.routing;
     }
@@ -223,7 +213,6 @@ export class DiagramStore {
   }
 
   replaceWaypoints(relationshipId: string, waypoints: Position[]): void {
-    this.assertWaypointsSupported(relationshipId);
     this.getWaypoints(relationshipId);
     this.relationshipWaypoints.set(relationshipId, waypoints.map(copyPosition));
   }
@@ -233,7 +222,6 @@ export class DiagramStore {
     position: Position,
     index = this.getWaypoints(relationshipId).length,
   ): number {
-    this.assertWaypointsSupported(relationshipId);
     const waypoints = this.getWaypoints(relationshipId);
     if (!Number.isInteger(index) || index < 0 || index > waypoints.length) {
       throw new RangeError(`Waypoint index ${index} is out of range`);
@@ -248,7 +236,6 @@ export class DiagramStore {
     index: number,
     position: Position,
   ): void {
-    this.assertWaypointsSupported(relationshipId);
     const waypoints = this.getWaypoints(relationshipId);
     if (!waypoints[index]) {
       throw new RangeError(`Waypoint index ${index} is out of range`);
@@ -258,7 +245,6 @@ export class DiagramStore {
   }
 
   removeWaypoint(relationshipId: string, index: number): void {
-    this.assertWaypointsSupported(relationshipId);
     const waypoints = this.getWaypoints(relationshipId);
     if (!waypoints[index]) {
       throw new RangeError(`Waypoint index ${index} is out of range`);
@@ -268,7 +254,6 @@ export class DiagramStore {
   }
 
   resetRoute(relationshipId: string): void {
-    this.assertWaypointsSupported(relationshipId);
     this.getWaypoints(relationshipId);
     this.relationshipWaypoints.set(relationshipId, []);
   }
@@ -328,14 +313,6 @@ export class DiagramStore {
       this.relationshipWaypoints.set(
         relationship.id,
         waypoints.map(copyPosition),
-      );
-    }
-  }
-
-  private assertWaypointsSupported(relationshipId: string): void {
-    if (this.getRelationship(relationshipId).routing === "straight") {
-      throw new Error(
-        `Straight relationship "${relationshipId}" does not support waypoints`,
       );
     }
   }

@@ -185,6 +185,16 @@ function markerPath(
     : null;
 }
 
+function markerElement(
+  host: HTMLElement,
+  path: SVGPathElement,
+  end: "start" | "end",
+): SVGMarkerElement | null {
+  const reference = path.getAttribute(`marker-${end}`);
+  const id = reference?.match(/^url\(#(.+)\)$/)?.[1];
+  return id ? host.querySelector<SVGMarkerElement>(`marker[id="${id}"]`) : null;
+}
+
 function pathCommandCount(path: SVGPathElement): number {
   return path.getAttribute("d")?.match(/[MLCQ]/g)?.length ?? 0;
 }
@@ -221,6 +231,91 @@ describe("straight routing and semantic attribute endpoints", () => {
     wrapper.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0 }));
     wrapper.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, button: 0 }));
     expect(host.querySelectorAll(".joint-marker-vertex")).toHaveLength(0);
+  });
+
+  it("renders ordered straight segments through one and multiple waypoints", () => {
+    const { diagram, host } = createRelationshipDiagram();
+    const directed = relationshipPath(host, "straight directed");
+    const composition = relationshipPath(host, "straight composition");
+    const directedWaypoint = { x: 470, y: 90 };
+    const compositionWaypoints = [
+      { x: 650, y: 430 },
+      { x: 360, y: 460 },
+    ];
+
+    diagram.addRelationshipWaypoint("straight-directed", directedWaypoint);
+    diagram.addRelationshipWaypoint("straight-composition", compositionWaypoints[0]!);
+    diagram.addRelationshipWaypoint("straight-composition", compositionWaypoints[1]!);
+
+    expect(pathCommandCount(directed)).toBe(3);
+    expect(pathCommandCount(composition)).toBe(4);
+    expect(directed.getAttribute("d")).not.toMatch(/[CQ]/);
+    expect(composition.getAttribute("d")).not.toMatch(/[CQ]/);
+    expect(diagram.getLayout().relationships?.["straight-directed"]?.waypoints).toEqual([
+      directedWaypoint,
+    ]);
+    expect(diagram.getLayout().relationships?.["straight-composition"]?.waypoints).toEqual(
+      compositionWaypoints,
+    );
+    expect(markerElement(host, directed, "end")?.getAttribute("orient")).toMatch(/^auto/);
+    expect(markerElement(host, composition, "start")?.getAttribute("orient")).toMatch(/^auto/);
+
+    const directedEnd = endpoint(directed, "target");
+    const beforeDirectedEnd = directed.getPointAtLength(
+      Math.max(0, directed.getTotalLength() - 1),
+    );
+    expect(directedEnd.x - beforeDirectedEnd.x).toBeGreaterThan(0);
+    expect(directedEnd.y - beforeDirectedEnd.y).toBeGreaterThan(0);
+
+    const compositionStart = endpoint(composition, "source");
+    const afterCompositionStart = composition.getPointAtLength(1);
+    expect(afterCompositionStart.x - compositionStart.x).toBeLessThan(0);
+    expect(afterCompositionStart.y - compositionStart.y).toBeGreaterThan(0);
+  });
+
+  it("preserves straight waypoints through movement, reset, and undo/redo", async () => {
+    const { diagram, host } = createRelationshipDiagram();
+    const path = relationshipPath(host, "straight directed");
+    const waypoints = [{ x: 420, y: 90 }, { x: 560, y: 410 }];
+    for (const waypoint of waypoints) {
+      diagram.addRelationshipWaypoint("straight-directed", waypoint);
+    }
+    expect(pathCommandCount(path)).toBe(4);
+
+    await userEvent.dragAndDrop(classBody(host, "Order"), host, {
+      force: true,
+      targetPosition: { x: 260, y: 420 },
+    });
+    expect(diagram.getLayout().relationships?.["straight-directed"]?.waypoints).toEqual(waypoints);
+    expect(pathCommandCount(path)).toBe(4);
+    expect(endpoint(path, "target").y).toBeCloseTo(
+      expectedRowY(diagram, "customer", 0),
+      1,
+    );
+
+    await userEvent.dragAndDrop(classBody(host, "Customer"), host, {
+      force: true,
+      targetPosition: { x: 760, y: 500 },
+    });
+    expect(diagram.getLayout().relationships?.["straight-directed"]?.waypoints).toEqual(
+      waypoints,
+    );
+    expect(pathCommandCount(path)).toBe(4);
+    expect(endpoint(path, "target").y).toBeCloseTo(
+      expectedRowY(diagram, "customer", 0),
+      1,
+    );
+
+    diagram.resetRelationshipRoute("straight-directed");
+    expect(diagram.getModel().relationships[0]?.routing).toBe("straight");
+    expect(diagram.getLayout().relationships?.["straight-directed"]).toBeUndefined();
+    expect(pathCommandCount(path)).toBe(2);
+
+    diagram.undo();
+    expect(diagram.getLayout().relationships?.["straight-directed"]?.waypoints).toEqual(waypoints);
+    expect(pathCommandCount(path)).toBe(4);
+    diagram.redo();
+    expect(pathCommandCount(path)).toBe(2);
   });
 
   it("keeps a straight connector straight after source and target movement", async () => {
@@ -306,6 +401,8 @@ describe("straight routing and semantic attribute endpoints", () => {
   it("recomputes row attachment after attribute reorder and model replacement", () => {
     const { diagram, host } = createRelationshipDiagram();
     const path = relationshipPath(host, "straight directed");
+    const waypoint = { x: 480, y: 100 };
+    diagram.addRelationshipWaypoint("straight-directed", waypoint);
     const before = endpoint(path, "target").y;
     const model = diagram.getModel();
     const customer = model.classes.find(({ id }) => id === "customer");
@@ -319,6 +416,9 @@ describe("straight routing and semantic attribute endpoints", () => {
       1,
     );
     expect(endpoint(path, "target").y - before).toBeCloseTo(ROW_HEIGHT, 1);
+    expect(diagram.getLayout().relationships?.["straight-directed"]?.waypoints).toEqual([
+      waypoint,
+    ]);
   });
 
   it("keeps routing semantic through zoom, resize, setLayout, and auto-layout", async () => {

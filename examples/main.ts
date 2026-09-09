@@ -157,7 +157,20 @@ const eventPanel = document.querySelector<HTMLElement>("#events");
 if (!container || !eventPanel) throw new Error("Demo elements are missing");
 const eventPanelElement = eventPanel;
 
-const diagram = createDiagram(container, { model, editable: true });
+const diagram = createDiagram(container, {
+  model,
+  editable: true,
+  layout: {
+    relationships: {
+      "right-source": {
+        waypoints: [
+          { x: 930, y: 500 },
+          { x: 1080, y: 610 },
+        ],
+      },
+    },
+  },
+});
 let selection: DiagramSelection | null = null;
 let zoom = 1;
 const eventLog: DiagramEvent[] = [];
@@ -216,7 +229,6 @@ document.querySelector("#add-waypoint")?.addEventListener("click", () => {
   if (!relationshipId) return;
   const relationship = model.relationships.find(({ id }) => id === relationshipId);
   if (!relationship) return;
-  if (relationship.routing === "straight") return;
   const layout = diagram.getLayout();
   const sourceClassId =
     typeof relationship.from === "string"

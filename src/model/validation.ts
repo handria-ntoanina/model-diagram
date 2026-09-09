@@ -215,13 +215,6 @@ export function validateDiagramLayout(
     if (relationshipIds && !relationshipIds.has(id)) {
       issues.push(`relationship layout refers to unknown relationship "${id}"`);
     }
-    const relationship = model?.relationships.find((item) => item.id === id);
-    if (
-      relationship?.routing === "straight" &&
-      (relationshipLayout.waypoints?.length ?? 0) > 0
-    ) {
-      issues.push(`straight relationship layout "${id}" must not contain waypoints`);
-    }
     for (const [index, waypoint] of (
       relationshipLayout.waypoints ?? []
     ).entries()) {

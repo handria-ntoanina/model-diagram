@@ -1162,7 +1162,6 @@ export class JointJsAdapter {
       const semanticLink = link as joint.dia.Link;
       const info = metadata(semanticLink);
       if (info?.kind !== "relationship") return;
-      if (semanticLink.get("relationshipRouting") === "straight") return;
       event.preventDefault();
       const localPoint = this.paper.clientToLocalPoint(
         event.clientX,
@@ -1224,7 +1223,6 @@ export class JointJsAdapter {
     if (!relationshipId) return;
     const link = this.relationshipCells.get(relationshipId);
     if (!link) return;
-    if (link.get("relationshipRouting") === "straight") return;
     const view = this.paper.requireView<joint.dia.LinkView>(link);
     view.addTools(
       new joint.dia.ToolsView({

@@ -4,6 +4,7 @@ import {
   validateDiagramLayout,
   validateDiagramModel,
   type Diagram,
+  type DiagramLayout,
   type DiagramModel,
   type RelationshipEndpoint,
   type RelationshipRouting,
@@ -68,7 +69,10 @@ function endpointModel(): DiagramModel {
   };
 }
 
-function makeDiagram(model = endpointModel()): Diagram {
+function makeDiagram(
+  model = endpointModel(),
+  relationshipLayout: DiagramLayout["relationships"] = {},
+): Diagram {
   const host = document.createElement("div");
   Object.defineProperties(host, {
     clientWidth: { configurable: true, value: 900 },
@@ -84,6 +88,7 @@ function makeDiagram(model = endpointModel()): Diagram {
         order: { x: 180, y: 200 },
         customer: { x: 700, y: 200 },
       },
+      relationships: relationshipLayout,
     },
   });
   diagrams.push(diagram);
@@ -195,48 +200,115 @@ describe("relationship routing and endpoint model", () => {
     expect(diagram.getModel().classes[0]!.attributes).toHaveLength(2);
   });
 
-  it("rejects persisted waypoints and waypoint commands for straight relationships", () => {
+  it("accepts persisted waypoints and waypoint commands for straight relationships", () => {
     const model = endpointModel();
+    const initial = [{ x: 300, y: 120 }, { x: 480, y: 320 }];
     expect(() =>
       validateDiagramLayout(
         {
           relationships: {
-            "order-customer-code": { waypoints: [{ x: 10, y: 20 }] },
+            "order-customer-code": { waypoints: initial },
           },
         },
         model,
       ),
-    ).toThrowError(/straight relationship layout.*must not contain waypoints/);
+    ).not.toThrow();
 
-    const diagram = makeDiagram(model);
-    expect(() =>
-      diagram.addRelationshipWaypoint("order-customer-code", { x: 1, y: 2 }),
-    ).toThrow(/does not support waypoints/);
-    expect(() =>
-      diagram.moveRelationshipWaypoint("order-customer-code", 0, { x: 1, y: 2 }),
-    ).toThrow(/does not support waypoints/);
-    expect(() =>
-      diagram.removeRelationshipWaypoint("order-customer-code", 0),
-    ).toThrow(/does not support waypoints/);
-    expect(() =>
-      diagram.resetRelationshipRoute("order-customer-code"),
-    ).toThrow(/does not support waypoints/);
-    expect(diagram.canUndo()).toBe(false);
+    const diagram = makeDiagram(model, {
+      "order-customer-code": { waypoints: initial },
+    });
+    const events: string[] = [];
+    diagram.on("relationship-waypoint-added", ({ type }) => events.push(type));
+    diagram.on("relationship-waypoint-changed", ({ type }) => events.push(type));
+    diagram.on("relationship-waypoint-removed", ({ type }) => events.push(type));
+
+    diagram.addRelationshipWaypoint("order-customer-code", { x: 400, y: 220 }, 1);
+    diagram.moveRelationshipWaypoint("order-customer-code", 2, { x: 500, y: 340 });
+    diagram.removeRelationshipWaypoint("order-customer-code", 0);
+    expect(diagram.getLayout().relationships?.["order-customer-code"]?.waypoints).toEqual([
+      { x: 400, y: 220 },
+      { x: 500, y: 340 },
+    ]);
+    expect(events).toEqual([
+      "relationship-waypoint-added",
+      "relationship-waypoint-changed",
+      "relationship-waypoint-removed",
+    ]);
+
+    diagram.undo();
+    diagram.undo();
+    diagram.undo();
+    expect(diagram.getLayout().relationships?.["order-customer-code"]?.waypoints).toEqual(initial);
+    diagram.redo();
+    diagram.redo();
+    diagram.redo();
+    expect(diagram.getLayout().relationships?.["order-customer-code"]?.waypoints).toEqual([
+      { x: 400, y: 220 },
+      { x: 500, y: 340 },
+    ]);
+
+    diagram.resetRelationshipRoute("order-customer-code");
+    expect(diagram.getLayout().relationships?.["order-customer-code"]).toBeUndefined();
+    expect(diagram.getModel().relationships[0]?.routing).toBe("straight");
+    diagram.undo();
+    expect(diagram.getLayout().relationships?.["order-customer-code"]?.waypoints).toEqual([
+      { x: 400, y: 220 },
+      { x: 500, y: 340 },
+    ]);
   });
 
-  it("requires an existing route to be reset before switching to straight", () => {
+  it("preserves waypoints while changing routing in either direction", () => {
     const model = endpointModel();
     model.relationships[2]!.routing = "auto";
     const diagram = makeDiagram(model);
     diagram.addRelationshipWaypoint("number-email", { x: 400, y: 300 });
 
-    expect(() =>
-      diagram.updateRelationship("number-email", { routing: "straight" }),
-    ).toThrow(/cannot retain waypoints; reset its route first/);
+    diagram.updateRelationship("number-email", { routing: "straight" });
+    expect(diagram.getModel().relationships[2]?.routing).toBe("straight");
+    expect(diagram.getLayout().relationships?.["number-email"]?.waypoints).toEqual([
+      { x: 400, y: 300 },
+    ]);
+
+    diagram.updateRelationship("number-email", { routing: "auto" });
     expect(diagram.getModel().relationships[2]?.routing).toBe("auto");
     expect(diagram.getLayout().relationships?.["number-email"]?.waypoints).toEqual([
       { x: 400, y: 300 },
     ]);
+
+    diagram.undo();
+    expect(diagram.getModel().relationships[2]?.routing).toBe("straight");
+    expect(diagram.getLayout().relationships?.["number-email"]?.waypoints).toEqual([
+      { x: 400, y: 300 },
+    ]);
+    diagram.undo();
+    expect(diagram.getModel().relationships[2]?.routing).toBe("auto");
+    expect(diagram.getLayout().relationships?.["number-email"]?.waypoints).toEqual([
+      { x: 400, y: 300 },
+    ]);
+    diagram.redo();
+    expect(diagram.getModel().relationships[2]?.routing).toBe("straight");
+  });
+
+  it("preserves straight waypoints across model replacement and endpoint movement", () => {
+    const waypoints = [{ x: 320, y: 80 }, { x: 520, y: 340 }];
+    const diagram = makeDiagram(endpointModel(), {
+      "order-customer-code": { waypoints },
+    });
+
+    const replacement = diagram.getModel();
+    diagram.setModel(replacement);
+    expect(diagram.getLayout().relationships?.["order-customer-code"]?.waypoints).toEqual(waypoints);
+
+    diagram.setLayout({
+      classes: {
+        order: { x: 80, y: 420 },
+        customer: { x: 820, y: 120 },
+      },
+      relationships: {
+        "order-customer-code": { waypoints },
+      },
+    });
+    expect(diagram.getLayout().relationships?.["order-customer-code"]?.waypoints).toEqual(waypoints);
   });
 
   it("updates routing through semantic events and exact undo and redo", () => {

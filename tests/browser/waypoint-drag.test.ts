@@ -14,8 +14,10 @@ function createWaypointDiagram(editable = true): {
   container.style.height = "600px";
   container.style.margin = "20px";
   document.body.append(container);
+  const model = modelFixture();
+  model.relationships[0]!.routing = "straight";
   const diagram = createDiagram(container, {
-    model: modelFixture(),
+    model,
     editable,
     autoLayout: false,
     layout: {
